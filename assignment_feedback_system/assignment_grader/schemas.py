@@ -147,7 +147,7 @@ class LectureAudioAnalysis(BaseModel):
     full_diarized_transcript: str
     summary: str
     persona_profile: dict[str, Any]
-    source_file_name: Literal["transcript.txt"] = "transcript.txt"
+    source_file_name: str = Field(min_length=1, max_length=500)
     uploaded_audio_name: str
     uploaded_audio_size: int = Field(ge=0)
     character_count: int = Field(ge=0)

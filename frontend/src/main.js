@@ -1,23 +1,39 @@
 import {
   analyzeLectureAudio,
+  getCurrentUser,
   getLectureMaterials,
+  getProfessors,
   gradeAssignment,
+  loginUser,
+  logoutUser,
+  registerUser,
+  saveProfessor,
   ScholarlyApiError,
   sendProfessorChat,
   uploadLectureMaterial,
 } from "./api.js";
 
+const authScreen = document.querySelector(".auth-screen");
 const titleScreen = document.querySelector(".title-screen");
 const titleImage = document.querySelector(".title-image");
 const introScreen = document.querySelector(".intro-screen");
 const professorSelectScreen = document.querySelector(".professor-select-screen");
 const professorOfficeScreen = document.querySelector(".professor-office-screen");
+const assignmentReviewScreen = document.querySelector(".assignment-review-screen");
+const reviewResultScreen = document.querySelector(".review-result-screen");
+const courseMaterialScreen = document.querySelector(".course-material-screen");
+const lectureAudioScreen = document.querySelector(".lecture-audio-screen");
 const modalBackdrop = document.querySelector(".modal-backdrop");
 const selectionModalBackdrop = document.querySelector(".selection-modal-backdrop");
 const selectionToast = document.querySelector(".selection-toast");
 const featureModalBackdrop = document.querySelector(".feature-modal-backdrop");
 const closedScreen = document.querySelector(".closed-screen");
 const menuButtons = [...document.querySelectorAll(".menu-hitbox")];
+const authTabs = [...document.querySelectorAll(".auth-tab")];
+const authForms = {
+  login: document.querySelector("#login-form"),
+  signup: document.querySelector("#signup-form"),
+};
 
 let selectedMenuIndex = 0;
 let selectedProfessorId = "yoon";
@@ -26,12 +42,23 @@ let professorHoverTimer;
 let toastTimer;
 let heroRequestId = 0;
 let pendingProfessorCustomization = null;
+let reviewFile = null;
+let materialFile = null;
+let audioFile = null;
+let typewriterTimer;
+let lastReviewComment = "";
+let lastReviewReport = null;
+let resultProfessorRequestId = 0;
+let currentUser = null;
 let featureRequestController = null;
+const transparentProfessorImageCache = new Map();
+const serverProfessors = new Map();
 const professorChatHistories = new Map();
 const professorLectureMaterials = new Map();
 const professorPersonaProfiles = new Map();
 const mainScreenUrl = "/main-screen.jpg";
-const professorCustomizationStorageKey = "assignment-review-professor-customizations";
+const sessionStorageKey = "assignment-review-session";
+const professorCustomizationStoragePrefix = "assignment-review-professor-customizations";
 const professorAssetModules = import.meta.glob(
   "/assets/professors/*.{png,jpg,jpeg,webp,avif,PNG,JPG,JPEG,WEBP,AVIF}",
   { eager: true, query: "?url", import: "default" },
@@ -275,10 +302,92 @@ function createFallbackPortrait(profile) {
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 }
 
+function loadImage(url) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = reject;
+    image.src = url;
+  });
+}
+
+async function getTransparentProfessorImage(url) {
+  if (transparentProfessorImageCache.has(url)) {
+    return transparentProfessorImageCache.get(url);
+  }
+
+  const processing = (async () => {
+    const image = await loadImage(url);
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    canvas.width = image.naturalWidth;
+    canvas.height = image.naturalHeight;
+    context.drawImage(image, 0, 0);
+
+    const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+    const pixels = imageData.data;
+    const pixelCount = canvas.width * canvas.height;
+    const visited = new Uint8Array(pixelCount);
+    const queue = new Int32Array(pixelCount);
+    let queueStart = 0;
+    let queueEnd = 0;
+
+    const isWhiteBackground = (pixelIndex) => {
+      const offset = pixelIndex * 4;
+      const red = pixels[offset];
+      const green = pixels[offset + 1];
+      const blue = pixels[offset + 2];
+      return red > 222 && green > 222 && blue > 222
+        && Math.max(red, green, blue) - Math.min(red, green, blue) < 32;
+    };
+
+    const enqueue = (pixelIndex) => {
+      if (!visited[pixelIndex] && isWhiteBackground(pixelIndex)) {
+        visited[pixelIndex] = 1;
+        queue[queueEnd] = pixelIndex;
+        queueEnd += 1;
+      }
+    };
+
+    for (let x = 0; x < canvas.width; x += 1) {
+      enqueue(x);
+      enqueue((canvas.height - 1) * canvas.width + x);
+    }
+    for (let y = 0; y < canvas.height; y += 1) {
+      enqueue(y * canvas.width);
+      enqueue(y * canvas.width + canvas.width - 1);
+    }
+
+    while (queueStart < queueEnd) {
+      const pixelIndex = queue[queueStart];
+      queueStart += 1;
+      pixels[pixelIndex * 4 + 3] = 0;
+      const x = pixelIndex % canvas.width;
+      const y = Math.floor(pixelIndex / canvas.width);
+      if (x > 0) enqueue(pixelIndex - 1);
+      if (x < canvas.width - 1) enqueue(pixelIndex + 1);
+      if (y > 0) enqueue(pixelIndex - canvas.width);
+      if (y < canvas.height - 1) enqueue(pixelIndex + canvas.width);
+    }
+
+    context.putImageData(imageData, 0, 0);
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+    return URL.createObjectURL(blob);
+  })().catch(() => url);
+
+  transparentProfessorImageCache.set(url, processing);
+  return processing;
+}
+
 const defaultProfessorAges = [
   38, 72, 54, 46, 37, 67, 42, 51, 44, 69,
   48, 65, 39, 56, 47, 35, 45, 36, 52, 41,
 ];
+const professorBaseProfiles = professorProfiles.map((profile, index) => ({
+  name: profile.name,
+  department: profile.department,
+  age: defaultProfessorAges[index],
+}));
 const savedProfessorCustomizations = readProfessorCustomizations();
 
 professorProfiles.forEach((profile, index) => {
@@ -298,7 +407,10 @@ document.documentElement.style.setProperty("--main-screen", `url("${mainScreenUr
 
 function readProfessorCustomizations() {
   try {
-    return JSON.parse(localStorage.getItem(professorCustomizationStorageKey)) ?? {};
+    const owner = currentUser?.id ?? "anonymous";
+    return JSON.parse(
+      localStorage.getItem(`${professorCustomizationStoragePrefix}:${owner}`),
+    ) ?? {};
   } catch {
     return {};
   }
@@ -311,7 +423,161 @@ function saveProfessorCustomization(profile) {
     age: profile.age,
     department: profile.department,
   };
-  localStorage.setItem(professorCustomizationStorageKey, JSON.stringify(customizations));
+  const owner = currentUser?.id ?? "anonymous";
+  localStorage.setItem(
+    `${professorCustomizationStoragePrefix}:${owner}`,
+    JSON.stringify(customizations),
+  );
+}
+
+function apiErrorText(error, fallback) {
+  return error instanceof ScholarlyApiError ? error.message : fallback;
+}
+
+function beginFeatureRequest() {
+  featureRequestController?.abort();
+  featureRequestController = new AbortController();
+  return featureRequestController;
+}
+
+function selectedProfessor() {
+  return professorProfiles.find((item) => item.id === selectedProfessorId);
+}
+
+function selectedServerProfessor() {
+  return serverProfessors.get(selectedProfessorId) ?? null;
+}
+
+function currentProfessorPersona(profile) {
+  const analyzed = professorPersonaProfiles.get(profile.id);
+  const analyzedDna = analyzed?.dna ?? {};
+  return {
+    professor_name: profile.name,
+    department: profile.department,
+    subject: profile.specialty,
+    summary_bio:
+      analyzed?.summary_bio ||
+      `${profile.type}. ${profile.specialty} 대표 발언: ${profile.quote}`,
+    tone_description:
+      analyzedDna.tone_description ||
+      analyzed?.tone_description ||
+      "엄격하지만 근거를 분명하게 설명하는 지도 교수의 어조",
+    sentence_endings:
+      analyzedDna.sentence_endings || analyzed?.sentence_endings || ["입니다", "하세요", "봅시다"],
+    filler_words: analyzedDna.filler_words || analyzed?.filler_words || [],
+  };
+}
+
+async function hydrateServerProfessors() {
+  const records = await getProfessors();
+  const localCustomizations = readProfessorCustomizations();
+  professorProfiles.forEach((profile, index) => {
+    const base = professorBaseProfiles[index];
+    const local = localCustomizations[profile.id];
+    profile.name = local?.name ?? base.name;
+    profile.age = local?.age ?? base.age;
+    profile.department = local?.department ?? base.department;
+    profile.customized = Boolean(local);
+  });
+  serverProfessors.clear();
+  records.forEach((record) => {
+    if (!record.template_id) return;
+    serverProfessors.set(record.template_id, record);
+    const profile = professorProfiles.find((item) => item.id === record.template_id);
+    if (!profile) return;
+    profile.name = record.name;
+    profile.age = record.age ?? profile.age;
+    profile.department = record.department;
+    profile.customized = true;
+    if (record.persona_profile) {
+      professorPersonaProfiles.set(profile.id, record.persona_profile);
+    }
+  });
+  initializeProfessorRoster();
+  renderProfessor(selectedProfessorId);
+}
+
+function setAuthMessage(form, message, success = false) {
+  const messageElement = form.querySelector(".auth-message");
+  messageElement.textContent = message;
+  messageElement.classList.toggle("is-success", success);
+}
+
+function showAuthView(view) {
+  const isLogin = view === "login";
+
+  authForms.login.hidden = !isLogin;
+  authForms.signup.hidden = isLogin;
+  authTabs.forEach((tab) => {
+    const active = tab.id === `${view}-tab`;
+    tab.classList.toggle("is-active", active);
+    tab.setAttribute("aria-selected", String(active));
+    tab.tabIndex = active ? 0 : -1;
+  });
+
+  Object.values(authForms).forEach((form) => setAuthMessage(form, ""));
+  requestAnimationFrame(() => {
+    document.querySelector(`#${view}-form input`)?.focus({ preventScroll: true });
+  });
+}
+
+function showAuth() {
+  window.clearTimeout(transitionTimer);
+  titleScreen.hidden = true;
+  introScreen.hidden = true;
+  professorSelectScreen.hidden = true;
+  professorOfficeScreen.hidden = true;
+  assignmentReviewScreen.hidden = true;
+  reviewResultScreen.hidden = true;
+  courseMaterialScreen.hidden = true;
+  lectureAudioScreen.hidden = true;
+  closedScreen.hidden = true;
+  modalBackdrop.hidden = true;
+  selectionModalBackdrop.hidden = true;
+  featureModalBackdrop.hidden = true;
+  selectionToast.hidden = true;
+  authScreen.hidden = false;
+  authScreen.classList.remove("is-leaving");
+  showAuthView("login");
+}
+
+function setSession(user) {
+  sessionStorage.setItem(sessionStorageKey, JSON.stringify({
+    account: user.login_id,
+    name: user.display_name,
+  }));
+}
+
+function getSession() {
+  try {
+    return JSON.parse(sessionStorage.getItem(sessionStorageKey));
+  } catch {
+    return null;
+  }
+}
+
+function updatePlayerName() {
+  const session = getSession();
+  document.querySelector(".player-name").textContent = session
+    ? `${session.name} 학생`
+    : "";
+}
+
+function enterTitle(user, animate = true) {
+  currentUser = user;
+  setSession(user);
+  updatePlayerName();
+  if (!animate) {
+    authScreen.hidden = true;
+    showTitle();
+    return;
+  }
+  authScreen.classList.add("is-leaving");
+  transitionTimer = window.setTimeout(() => {
+    authScreen.hidden = true;
+    showTitle();
+    menuButtons[0].focus({ preventScroll: true });
+  }, 650);
 }
 
 function setSelectedMenu(index, focus = false) {
@@ -513,14 +779,20 @@ function showProfessorOffice() {
 
   professorSelectScreen.hidden = true;
   featureModalBackdrop.hidden = true;
+  assignmentReviewScreen.hidden = true;
+  reviewResultScreen.hidden = true;
+  courseMaterialScreen.hidden = true;
+  lectureAudioScreen.hidden = true;
   professorOfficeScreen.hidden = false;
   document.querySelector("[data-feature='chat']").focus({ preventScroll: true });
 }
 
 function backToProfessors() {
-  featureRequestController?.abort();
-  featureRequestController = null;
   featureModalBackdrop.hidden = true;
+  assignmentReviewScreen.hidden = true;
+  reviewResultScreen.hidden = true;
+  courseMaterialScreen.hidden = true;
+  lectureAudioScreen.hidden = true;
   professorOfficeScreen.hidden = true;
   professorSelectScreen.hidden = false;
   renderProfessor(selectedProfessorId);
@@ -528,16 +800,43 @@ function backToProfessors() {
     ?.focus({ preventScroll: true });
 }
 
-function confirmSelection() {
-  const profile = professorProfiles.find((item) => item.id === selectedProfessorId);
+async function confirmSelection() {
+  const profile = selectedProfessor();
   if (!pendingProfessorCustomization) {
     cancelSelection();
     return;
   }
 
-  profile.name = pendingProfessorCustomization.name;
-  profile.age = pendingProfessorCustomization.age;
-  profile.department = pendingProfessorCustomization.department;
+  const customization = pendingProfessorCustomization;
+  const confirmButton = document.querySelector(".professor-confirm");
+  const modalCopy = document.querySelector(".selection-modal-copy");
+  confirmButton.disabled = true;
+  modalCopy.textContent = "교수 프로필을 서버에 저장하고 있습니다…";
+
+  try {
+    const record = await saveProfessor({
+      template_id: profile.id,
+      name: customization.name,
+      age: customization.age,
+      department: customization.department,
+      lab_name: null,
+      specialty: profile.specialty,
+      personality_type: profile.type,
+      traits: profile.specialty,
+      representative_quote: profile.quote,
+      difficulty: profile.difficulty,
+      make_active: true,
+    });
+    serverProfessors.set(profile.id, record);
+  } catch (error) {
+    modalCopy.textContent = apiErrorText(error, "교수 프로필 저장에 실패했습니다.");
+    confirmButton.disabled = false;
+    return;
+  }
+
+  profile.name = customization.name;
+  profile.age = customization.age;
+  profile.department = customization.department;
   profile.customized = true;
   saveProfessorCustomization(profile);
   sessionStorage.setItem("assignment-review-professor", selectedProfessorId);
@@ -559,228 +858,287 @@ function confirmSelection() {
   toastTimer = window.setTimeout(() => {
     selectionToast.hidden = true;
   }, 3200);
+  confirmButton.disabled = false;
   showProfessorOffice();
 }
 
-function selectedProfessor() {
-  return professorProfiles.find((item) => item.id === selectedProfessorId);
+const uploadFeatureSettings = {
+  audio: {
+    title: "강의 음성 업로드",
+    guide: "녹음된 강의 음성 파일을 등록해 주세요.",
+    accept: "audio/*",
+    button: "강의 음성 등록하기",
+  },
+};
+
+function showAssignmentReview() {
+  featureModalBackdrop.hidden = true;
+  professorOfficeScreen.hidden = true;
+  assignmentReviewScreen.hidden = false;
+  document.querySelector(".review-prompt-input").focus({ preventScroll: true });
 }
 
-function currentProfessorPersona(profile) {
-  const extracted = professorPersonaProfiles.get(profile.id);
-  const dna = extracted?.dna;
-  return {
-    professor_name: profile.name,
-    department: profile.department,
-    subject: profile.specialty,
-    summary_bio: extracted?.summary_bio || `${profile.type} 성향으로 ${profile.specialty}`,
-    tone_description: dna?.tone_description || `${profile.type} 특성이 드러나는 전문적인 지도 어조`,
-    sentence_endings: dna?.sentence_endings || [],
-    filler_words: dna?.filler_words || [],
-  };
+function closeAssignmentReview() {
+  assignmentReviewScreen.hidden = true;
+  reviewResultScreen.hidden = true;
+  professorOfficeScreen.hidden = false;
+  document.querySelector("[data-feature='review']").focus({ preventScroll: true });
 }
 
-function beginFeatureRequest() {
-  featureRequestController?.abort();
-  featureRequestController = new AbortController();
-  return featureRequestController;
-}
+function typeReviewComment(comment) {
+  const commentElement = document.querySelector(".review-result-comment");
+  const cursor = document.querySelector(".typewriter-cursor");
+  window.clearTimeout(typewriterTimer);
+  commentElement.textContent = "";
+  cursor.hidden = false;
+  let index = 0;
 
-function apiErrorText(error, fallback) {
-  if (error instanceof DOMException && error.name === "AbortError") return "요청이 취소되었습니다.";
-  if (error instanceof ScholarlyApiError || error instanceof Error) return error.message;
-  return fallback;
-}
+  function typeNextCharacter() {
+    if (index >= comment.length) {
+      cursor.hidden = true;
+      return;
+    }
 
-function appendChatMessage(chatLog, role, content, meta = "") {
-  const message = document.createElement("div");
-  message.className = `chat-message ${role === "student" ? "user-message" : "professor-message"}`;
-  const body = document.createElement("p");
-  body.textContent = content;
-  message.append(body);
-  if (meta) {
-    const metadata = document.createElement("small");
-    metadata.textContent = meta;
-    message.append(metadata);
+    commentElement.textContent += comment[index];
+    const character = comment[index];
+    index += 1;
+    const delay = /[.!?。！？]/.test(character) ? 180 : /[,，]/.test(character) ? 85 : 24;
+    typewriterTimer = window.setTimeout(typeNextCharacter, delay);
   }
-  chatLog.append(message);
-  chatLog.scrollTop = chatLog.scrollHeight;
+
+  typeNextCharacter();
 }
 
-function renderChatHistory(chatLog, profile) {
-  const history = professorChatHistories.get(profile.id) || [];
-  if (!history.length) {
-    appendChatMessage(chatLog, "professor", `${profile.name}입니다. 과제나 강의 내용에 관해 질문하세요.`);
+function showReviewResult(prompt, fileName, report) {
+  const profile = selectedProfessor();
+  const professorImage = document.querySelector(".review-result-professor");
+  const imageRequestId = ++resultProfessorRequestId;
+  professorImage.classList.add("is-processing");
+  professorImage.removeAttribute("src");
+  professorImage.alt = `${profile.name} 인물 이미지`;
+  getTransparentProfessorImage(profile.image).then((transparentImageUrl) => {
+    if (imageRequestId !== resultProfessorRequestId) {
+      return;
+    }
+    professorImage.onload = () => professorImage.classList.remove("is-processing");
+    professorImage.src = transparentImageUrl;
+  });
+  document.querySelector(".review-result-professor-name").textContent = profile.name;
+
+  lastReviewReport = report;
+  lastReviewComment = report.summary;
+  assignmentReviewScreen.hidden = true;
+  reviewResultScreen.hidden = false;
+  requestAnimationFrame(() => {
+    typeReviewComment(lastReviewComment);
+    document.querySelector("[data-action='open-review-report']").focus({ preventScroll: true });
+  });
+}
+
+function backToReviewForm() {
+  window.clearTimeout(typewriterTimer);
+  reviewResultScreen.hidden = true;
+  featureModalBackdrop.hidden = true;
+  assignmentReviewScreen.hidden = false;
+  document.querySelector(".review-prompt-input").focus({ preventScroll: true });
+}
+
+function openReviewReport() {
+  const profile = selectedProfessor();
+  const request = JSON.parse(sessionStorage.getItem("assignment-review-request") ?? "{}");
+  const title = document.querySelector("#feature-modal-title");
+  const content = document.querySelector(".feature-modal-content");
+  const report = lastReviewReport;
+  if (!report) return;
+  title.textContent = "과제 첨삭 보고서";
+  content.innerHTML = `
+    <article class="review-report">
+      <div class="report-meta">
+        <span>담당 교수</span><strong class="report-professor"></strong>
+        <span>과제 파일</span><strong class="report-file"></strong>
+        <span>평가 결과</span><strong class="report-grade"></strong>
+        <span>분석 엔진</span><strong class="report-engine"></strong>
+      </div>
+      <section>
+        <h3>종합 의견</h3>
+        <p class="report-comment"></p>
+      </section>
+      <section>
+        <h3>우선 수정 항목</h3>
+        <ol class="report-priorities"></ol>
+      </section>
+      <button class="report-download-button" type="button">텍스트 보고서 저장</button>
+    </article>
+  `;
+  content.querySelector(".report-professor").textContent = profile.name;
+  content.querySelector(".report-file").textContent = request.fileName ?? reviewFile?.name ?? "과제 파일";
+  content.querySelector(".report-grade").textContent = `${report.grade} · ${report.total_score}점`;
+  content.querySelector(".report-engine").textContent = report.engine;
+  content.querySelector(".report-comment").textContent = lastReviewComment;
+  const priorityList = content.querySelector(".report-priorities");
+  report.priorities.forEach((priority) => {
+    const item = document.createElement("li");
+    item.textContent = priority;
+    priorityList.append(item);
+  });
+  content.querySelector(".report-download-button").addEventListener("click", downloadReviewReport);
+  featureModalBackdrop.hidden = false;
+  content.querySelector(".report-download-button").focus({ preventScroll: true });
+}
+
+function downloadReviewReport() {
+  const profile = selectedProfessor();
+  const reportData = lastReviewReport;
+  if (!reportData) return;
+  const report = [
+    "과제 첨삭 보고서",
+    `담당 교수: ${profile.name}`,
+    `평가: ${reportData.grade} · ${reportData.total_score}점`,
+    `분석 엔진: ${reportData.engine}`,
+    "",
+    lastReviewComment,
+    "",
+    "우선 수정 항목",
+    ...reportData.priorities.map((item, index) => `${index + 1}. ${item}`),
+  ].join("\n");
+  const url = URL.createObjectURL(new Blob([report], { type: "text/plain;charset=utf-8" }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "과제-첨삭-보고서.txt";
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function openReviewQuestion() {
+  const profile = professorProfiles.find((item) => item.id === selectedProfessorId);
+  const title = document.querySelector("#feature-modal-title");
+  const content = document.querySelector(".feature-modal-content");
+  title.textContent = "첨삭 내용 질문하기";
+  content.innerHTML = `
+    <div class="chat-workspace">
+      <div class="chat-log" aria-live="polite">
+        <div class="chat-message professor-message"></div>
+      </div>
+      <form class="chat-form">
+        <label class="sr-only" for="review-question-input">첨삭 내용 질문</label>
+        <textarea id="review-question-input" rows="2" maxlength="500" placeholder="첨삭 내용에 관해 질문하세요" required></textarea>
+        <button type="submit">전송</button>
+        <p class="chat-status" role="status" aria-live="polite"></p>
+      </form>
+    </div>
+  `;
+  content.querySelector(".professor-message").textContent =
+    `${profile.name}입니다. 방금 전달한 첨삭 내용 중 이해되지 않는 부분을 질문하세요.`;
+  content.querySelector(".chat-form").addEventListener("submit", handleChatSubmit);
+  featureModalBackdrop.hidden = false;
+  content.querySelector("textarea").focus({ preventScroll: true });
+}
+
+function showCourseMaterial() {
+  featureModalBackdrop.hidden = true;
+  professorOfficeScreen.hidden = true;
+  courseMaterialScreen.hidden = false;
+  document.querySelector(".material-file-zone").focus({ preventScroll: true });
+}
+
+function closeCourseMaterial() {
+  courseMaterialScreen.hidden = true;
+  professorOfficeScreen.hidden = false;
+  document.querySelector("[data-feature='material']").focus({ preventScroll: true });
+}
+
+function showLectureAudio() {
+  featureModalBackdrop.hidden = true;
+  professorOfficeScreen.hidden = true;
+  lectureAudioScreen.hidden = false;
+  document.querySelector(".audio-file-zone").focus({ preventScroll: true });
+}
+
+function closeLectureAudio() {
+  lectureAudioScreen.hidden = true;
+  professorOfficeScreen.hidden = false;
+  document.querySelector("[data-feature='audio']").focus({ preventScroll: true });
+}
+
+function setReviewFile(file) {
+  const message = document.querySelector(".review-form-message");
+  const status = document.querySelector(".review-file-status");
+  const allowedExtensions = [".pdf", ".txt"];
+  const extension = file ? `.${file.name.split(".").pop().toLowerCase()}` : "";
+
+  if (!file || !allowedExtensions.includes(extension)) {
+    reviewFile = null;
+    reviewDropzone.classList.remove("has-file");
+    status.textContent = "";
+    message.textContent = file ? "PDF 또는 텍스트 파일만 첨부할 수 있습니다." : "";
     return;
   }
-  history.forEach((item) => appendChatMessage(chatLog, item.role, item.content, item.meta));
-}
 
-function renderStringList(container, items, emptyMessage = "해당 항목이 없습니다.") {
-  container.replaceChildren();
-  const values = Array.isArray(items) && items.length ? items : [emptyMessage];
-  values.forEach((value) => {
-    const item = document.createElement("li");
-    item.textContent = value;
-    container.append(item);
-  });
-}
-
-function renderFeedbackReport(container, report) {
-  container.className = "feature-result result-panel";
-  container.innerHTML = `
-    <article class="feedback-report">
-      <header class="feedback-score-row">
-        <div><span>총점</span><strong class="feedback-score"></strong></div>
-        <div><span>등급</span><strong class="feedback-grade"></strong></div>
-        <p class="feedback-engine"></p>
-      </header>
-      <p class="feedback-summary"></p>
-      <section><h3>평가 기준</h3><div class="feedback-criteria"></div></section>
-      <div class="feedback-columns">
-        <section><h3>강점</h3><ul class="feedback-strengths"></ul></section>
-        <section><h3>우선 개선</h3><ul class="feedback-priorities"></ul></section>
-      </div>
-      <section><h3>오개념·주의점</h3><ul class="feedback-misconceptions"></ul></section>
-      <details><summary>개선 예시 보기</summary><pre class="feedback-example"></pre></details>
-    </article>`;
-  container.querySelector(".feedback-score").textContent = `${report.total_score}/100`;
-  container.querySelector(".feedback-grade").textContent = report.grade;
-  container.querySelector(".feedback-engine").textContent = report.engine;
-  container.querySelector(".feedback-summary").textContent = report.summary;
-  container.querySelector(".feedback-example").textContent = report.improved_example;
-  renderStringList(container.querySelector(".feedback-strengths"), report.strengths);
-  renderStringList(container.querySelector(".feedback-priorities"), report.priorities);
-  renderStringList(container.querySelector(".feedback-misconceptions"), report.misconceptions);
-  const criteria = container.querySelector(".feedback-criteria");
-  (report.criteria || []).forEach((criterion) => {
-    const card = document.createElement("div");
-    card.className = "feedback-criterion";
-    const heading = document.createElement("strong");
-    heading.textContent = `${criterion.name} · ${criterion.score}/${criterion.max_score}`;
-    const feedback = document.createElement("p");
-    feedback.textContent = criterion.feedback;
-    const evidence = document.createElement("small");
-    evidence.textContent = criterion.evidence;
-    card.append(heading, feedback, evidence);
-    criteria.append(card);
-  });
-}
-
-function renderMaterialResult(container, material) {
-  container.className = "feature-result result-panel";
-  container.innerHTML = `
-    <article class="material-result">
-      <header><strong></strong><span></span></header>
-      <p class="result-meta"></p>
-      <pre></pre>
-    </article>`;
-  container.querySelector("strong").textContent = material.title;
-  container.querySelector("span").textContent = "서버 저장 완료";
-  container.querySelector(".result-meta").textContent =
-    `${material.total_pages}페이지 · ${material.processed_chunks}청크 · ${material.engine}`;
-  container.querySelector("pre").textContent = material.summary;
-}
-
-function renderAudioResult(container, analysis) {
-  const dna = analysis.persona_profile?.dna || {};
-  container.className = "feature-result result-panel";
-  container.innerHTML = `
-    <article class="audio-result">
-      <header><strong>교수 음성 특징 추출 완료</strong><span></span></header>
-      <p class="audio-summary"></p>
-      <dl class="audio-dna">
-        <div><dt>톤앤매너</dt><dd class="audio-tone"></dd></div>
-        <div><dt>문장 구조</dt><dd class="audio-structure"></dd></div>
-        <div><dt>지적 방식</dt><dd class="audio-criticism"></dd></div>
-      </dl>
-      <div class="audio-tags"></div>
-      <details><summary>고정 transcript.txt 전문 보기</summary><pre class="audio-transcript"></pre></details>
-    </article>`;
-  container.querySelector("header span").textContent = analysis.engine;
-  container.querySelector(".audio-summary").textContent = analysis.persona_profile?.summary_bio || analysis.summary;
-  container.querySelector(".audio-tone").textContent = dna.tone_description || "-";
-  container.querySelector(".audio-structure").textContent = dna.sentence_structure || "-";
-  container.querySelector(".audio-criticism").textContent = dna.criticism_style || "-";
-  container.querySelector(".audio-transcript").textContent = analysis.professor_transcript;
-  const tags = container.querySelector(".audio-tags");
-  [...(dna.sentence_endings || []), ...(dna.filler_words || [])].forEach((value) => {
-    const tag = document.createElement("span");
-    tag.textContent = value;
-    tags.append(tag);
-  });
+  reviewFile = file;
+  reviewDropzone.classList.add("has-file");
+  status.dataset.fileType = extension.slice(1).toUpperCase();
+  status.textContent = file.name;
+  message.textContent = "";
 }
 
 function openFeature(feature) {
-  const profile = selectedProfessor();
+  if (feature === "review") {
+    showAssignmentReview();
+    return;
+  }
+  if (feature === "material") {
+    showCourseMaterial();
+    return;
+  }
+  if (feature === "audio") {
+    showLectureAudio();
+    return;
+  }
+
+  const profile = professorProfiles.find((item) => item.id === selectedProfessorId);
   const title = document.querySelector("#feature-modal-title");
   const content = document.querySelector(".feature-modal-content");
-  featureRequestController?.abort();
-  featureRequestController = null;
 
   if (feature === "chat") {
-    title.textContent = `${profile.name}와 대화`;
+    title.textContent = "교수 챗봇";
     content.innerHTML = `
       <div class="chat-workspace">
-        <div class="chat-log" aria-live="polite"></div>
+        <div class="chat-log" aria-live="polite">
+          <div class="chat-message professor-message"></div>
+        </div>
         <form class="chat-form">
           <label class="sr-only" for="chat-input">교수에게 보낼 메시지</label>
-          <textarea id="chat-input" rows="2" maxlength="12000" placeholder="교수에게 질문을 입력하세요" required></textarea>
+          <textarea id="chat-input" rows="2" maxlength="500" placeholder="교수에게 질문을 입력하세요" required></textarea>
           <button type="submit">전송</button>
           <p class="chat-status" role="status" aria-live="polite"></p>
         </form>
       </div>
     `;
-    renderChatHistory(content.querySelector(".chat-log"), profile);
+    content.querySelector(".professor-message").textContent =
+      `${profile.name}입니다. 과제에 관해 궁금한 점을 질문하세요.`;
     content.querySelector(".chat-form").addEventListener("submit", handleChatSubmit);
-  } else if (feature === "review") {
-    title.textContent = "과제 첨삭";
-    content.innerHTML = `
-      <form class="review-form">
-        <p class="upload-guide">저장된 최신 강의자료 요약을 자동으로 불러옵니다. 없으면 직접 입력하세요.</p>
-        <label><span>강의 요약</span><textarea name="lectureSummary" rows="5" minlength="20" required></textarea></label>
-        <p class="lecture-source-status" role="status">강의자료 확인 중…</p>
-        <label><span>과제 지시문</span><textarea name="assignmentPrompt" rows="4" minlength="5" placeholder="교수가 제시한 과제 요구사항을 입력하세요." required></textarea></label>
-        <label class="compact-file-field"><span>학생 제출 과제</span><input name="submissionFile" type="file" accept=".txt,.md,.pdf,.docx" required /></label>
-        <button class="feature-submit-button" type="submit">실제 첨삭 요청하기</button>
-        <div class="feature-result" role="status" aria-live="polite"></div>
-      </form>`;
-    const form = content.querySelector(".review-form");
-    form.addEventListener("submit", handleReviewSubmit);
-    void hydrateLectureSummary(form, profile.id);
-  } else if (feature === "material") {
-    title.textContent = "강의 자료 PDF 요약·저장";
-    content.innerHTML = `
-      <form class="feature-upload-form material-upload-form">
-        <p class="upload-guide">PDF를 실제 Parse → Clean → Chunk → Map → Reduce 파이프라인으로 요약합니다.</p>
-        <label class="feature-text-field"><span>자료 제목</span><input name="title" type="text" maxlength="200" placeholder="예: 3주차 알고리즘 강의" required /></label>
-        <label class="upload-dropzone" tabindex="0">
-          <input name="file" type="file" accept="application/pdf,.pdf" required />
-          <strong>PDF 파일 선택</strong>
-          <span>최대 25MB</span>
-        </label>
-        <p class="upload-file-name" role="status">선택된 파일이 없습니다.</p>
-        <button class="feature-submit-button" type="submit" disabled>PDF 요약하고 저장하기</button>
-        <div class="feature-result" role="status" aria-live="polite"></div>
-      </form>`;
-    setupMaterialForm(content.querySelector(".material-upload-form"));
-  } else if (feature === "audio") {
-    title.textContent = "강의 음성 특징 분석";
-    content.innerHTML = `
-      <form class="feature-upload-form audio-upload-form">
-        <p class="upload-guide">데모 모드: 실제 STT는 호출하지 않고 transcript.txt를 고정 전문으로 사용합니다.</p>
-        <label class="upload-dropzone" tabindex="0">
-          <input name="file" type="file" accept=".mp3,.wav,.m4a,.ogg,.flac,.aac,.webm,.wma,audio/*" required />
-          <strong>강의 음성 선택</strong>
-          <span>파일명과 크기만 서버에 전달해 모의 분석합니다.</span>
-        </label>
-        <p class="upload-file-name" role="status">선택된 파일이 없습니다.</p>
-        <button class="feature-submit-button" type="submit" disabled>음성 특징 추출하기</button>
-        <div class="feature-result" role="status" aria-live="polite"></div>
-      </form>`;
-    setupAudioForm(content.querySelector(".audio-upload-form"));
   } else {
-    return;
+    const settings = uploadFeatureSettings[feature];
+    if (!settings) {
+      return;
+    }
+    title.textContent = settings.title;
+    content.innerHTML = `
+      <form class="feature-upload-form">
+        <p class="upload-guide"></p>
+        <label class="upload-dropzone" tabindex="0">
+          <input type="file" accept="${settings.accept}" required />
+          <strong>파일 선택</strong>
+          <span>파일을 클릭해서 불러오세요</span>
+        </label>
+        <p class="upload-file-name" role="status">선택된 파일이 없습니다.</p>
+        <button class="feature-submit-button" type="submit" disabled></button>
+        <p class="feature-result" role="status" aria-live="polite"></p>
+      </form>
+    `;
+    content.querySelector(".upload-guide").textContent = settings.guide;
+    content.querySelector(".feature-submit-button").textContent = settings.button;
+    setupUploadForm(content.querySelector(".feature-upload-form"), settings.title);
   }
 
   featureModalBackdrop.hidden = false;
@@ -797,35 +1155,48 @@ async function handleChatSubmit(event) {
   const status = form.querySelector(".chat-status");
   const chatLog = form.closest(".chat-workspace").querySelector(".chat-log");
   const profile = selectedProfessor();
+  const serverProfile = selectedServerProfessor();
   const message = input.value.trim();
   if (!message) return;
+  if (!serverProfile) {
+    status.textContent = "먼저 교수 선택 화면에서 교수 정보를 저장해 주세요.";
+    return;
+  }
 
   const history = professorChatHistories.get(profile.id) || [];
-  appendChatMessage(chatLog, "student", message);
+  const userMessage = document.createElement("div");
+  userMessage.className = "chat-message user-message";
+  userMessage.textContent = message;
+  chatLog.append(userMessage);
   history.push({ role: "student", content: message });
   professorChatHistories.set(profile.id, history);
   input.value = "";
+  chatLog.scrollTop = chatLog.scrollHeight;
   input.disabled = true;
   submitButton.disabled = true;
   status.textContent = "IntentRouter → AcademicBrainAgent → PersonaStylizerAgent 실행 중…";
+  status.classList.remove("is-error");
   const controller = beginFeatureRequest();
 
   try {
-    const response = await sendProfessorChat({
-      professorId: profile.id,
+    const result = await sendProfessorChat({
+      professorId: serverProfile.id,
       message,
       history: history.slice(0, -1),
       persona: currentProfessorPersona(profile),
       signal: controller.signal,
     });
     if (!form.isConnected) return;
-    const sourceLabel = response.context_sources?.length
-      ? ` · 강의자료 ${response.context_sources.length}개 참고`
-      : "";
-    const meta = `${response.engine}${sourceLabel}`;
-    appendChatMessage(chatLog, "professor", response.reply, meta);
-    history.push({ role: "professor", content: response.reply, meta });
-    status.textContent = response.caution || "답변 생성이 완료되었습니다.";
+    const response = document.createElement("div");
+    response.className = "chat-message professor-message";
+    response.textContent = result.reply;
+    chatLog.append(response);
+    history.push({ role: "professor", content: result.reply });
+    const materialCount = result.context_sources?.length ?? 0;
+    status.textContent = materialCount
+      ? `답변 완료 · 강의자료 ${materialCount}개 참고`
+      : result.caution || "답변 생성이 완료되었습니다.";
+    chatLog.scrollTop = chatLog.scrollHeight;
   } catch (error) {
     if (!form.isConnected) return;
     status.textContent = apiErrorText(error, "교수 대화 요청에 실패했습니다.");
@@ -839,55 +1210,7 @@ async function handleChatSubmit(event) {
   }
 }
 
-async function hydrateLectureSummary(form, professorId) {
-  const status = form.querySelector(".lecture-source-status");
-  const textarea = form.elements.lectureSummary;
-  const controller = beginFeatureRequest();
-  try {
-    const materials = await getLectureMaterials(professorId, controller.signal);
-    professorLectureMaterials.set(professorId, materials);
-    if (!form.isConnected) return;
-    if (materials.length) {
-      textarea.value = materials[0].summary;
-      status.textContent = `서버 저장 자료 사용: ${materials[0].title}`;
-    } else {
-      status.textContent = "저장된 강의자료가 없습니다. 강의 요약을 직접 입력하세요.";
-    }
-  } catch (error) {
-    if (!form.isConnected) return;
-    status.textContent = `${apiErrorText(error, "강의자료를 불러오지 못했습니다.")} 직접 입력할 수 있습니다.`;
-  }
-}
-
-async function handleReviewSubmit(event) {
-  event.preventDefault();
-  const form = event.currentTarget;
-  const result = form.querySelector(".feature-result");
-  const submitButton = form.querySelector("button[type='submit']");
-  const submissionFile = form.elements.submissionFile.files[0];
-  if (!submissionFile) return;
-  result.className = "feature-result is-loading";
-  result.textContent = "과제 파일 추출 및 AI 첨삭을 진행하고 있습니다…";
-  submitButton.disabled = true;
-  const controller = beginFeatureRequest();
-  try {
-    const report = await gradeAssignment({
-      lectureText: form.elements.lectureSummary.value.trim(),
-      assignmentText: form.elements.assignmentPrompt.value.trim(),
-      submissionFile,
-      signal: controller.signal,
-    });
-    if (form.isConnected) renderFeedbackReport(result, report);
-  } catch (error) {
-    if (!form.isConnected) return;
-    result.className = "feature-result is-error";
-    result.textContent = apiErrorText(error, "과제 첨삭에 실패했습니다.");
-  } finally {
-    if (form.isConnected) submitButton.disabled = false;
-  }
-}
-
-function setupFileSelection(form) {
+function setupUploadForm(form, featureTitle) {
   const input = form.querySelector("input[type='file']");
   const fileName = form.querySelector(".upload-file-name");
   const submitButton = form.querySelector(".feature-submit-button");
@@ -897,79 +1220,15 @@ function setupFileSelection(form) {
     const file = input.files[0];
     fileName.textContent = file ? file.name : "선택된 파일이 없습니다.";
     submitButton.disabled = !file;
-    result.className = "feature-result";
-    result.replaceChildren();
+    result.textContent = "";
   });
 
-  return { input, fileName, submitButton, result };
-}
-
-function setupMaterialForm(form) {
-  const { input, submitButton, result } = setupFileSelection(form);
-  input.addEventListener("change", () => {
-    const file = input.files[0];
-    if (file && !form.elements.title.value.trim()) {
-      form.elements.title.value = file.name.replace(/\.pdf$/i, "");
-    }
-  });
-  form.addEventListener("submit", async (event) => {
+  form.addEventListener("submit", (event) => {
     event.preventDefault();
-    const file = input.files[0];
-    const profile = selectedProfessor();
-    if (!file) return;
-    result.className = "feature-result is-loading";
-    result.textContent = "PDF 추출·청킹·요약·저장 중…";
-    submitButton.disabled = true;
-    const controller = beginFeatureRequest();
-    try {
-      const material = await uploadLectureMaterial({
-        professorId: profile.id,
-        title: form.elements.title.value.trim(),
-        file,
-        signal: controller.signal,
-      });
-      const existing = professorLectureMaterials.get(profile.id) || [];
-      professorLectureMaterials.set(profile.id, [material, ...existing.filter((item) => item.id !== material.id)]);
-      if (form.isConnected) renderMaterialResult(result, material);
-    } catch (error) {
-      if (!form.isConnected) return;
-      result.className = "feature-result is-error";
-      result.textContent = apiErrorText(error, "강의자료 업로드에 실패했습니다.");
-    } finally {
-      if (form.isConnected) submitButton.disabled = false;
+    if (!input.files[0]) {
+      return;
     }
-  });
-}
-
-function setupAudioForm(form) {
-  const { input, submitButton, result } = setupFileSelection(form);
-  form.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const file = input.files[0];
-    const profile = selectedProfessor();
-    if (!file) return;
-    result.className = "feature-result is-loading";
-    result.textContent = "STT와 화자 분석을 수행하는 것처럼 처리한 뒤 transcript.txt 특징을 추출하고 있습니다…";
-    submitButton.disabled = true;
-    const controller = beginFeatureRequest();
-    try {
-      const analysis = await analyzeLectureAudio({
-        professorId: profile.id,
-        professorName: profile.name,
-        department: profile.department,
-        subject: profile.specialty,
-        file,
-        signal: controller.signal,
-      });
-      professorPersonaProfiles.set(profile.id, analysis.persona_profile);
-      if (form.isConnected) renderAudioResult(result, analysis);
-    } catch (error) {
-      if (!form.isConnected) return;
-      result.className = "feature-result is-error";
-      result.textContent = apiErrorText(error, "강의 음성 분석에 실패했습니다.");
-    } finally {
-      if (form.isConnected) submitButton.disabled = false;
-    }
+    result.textContent = `${featureTitle} 준비가 완료되었습니다. 백엔드 연결 후 서버에 저장됩니다.`;
   });
 }
 
@@ -977,23 +1236,30 @@ function closeFeature() {
   featureRequestController?.abort();
   featureRequestController = null;
   featureModalBackdrop.hidden = true;
-  document.querySelector(`[data-feature]`)?.focus({ preventScroll: true });
+  const returnTarget = reviewResultScreen.hidden
+    ? document.querySelector("[data-feature]")
+    : document.querySelector("[data-action='open-review-report']");
+  returnTarget?.focus({ preventScroll: true });
 }
 
 function showTitle() {
   window.clearTimeout(transitionTimer);
-  featureRequestController?.abort();
-  featureRequestController = null;
+  authScreen.hidden = true;
   introScreen.hidden = true;
   introScreen.classList.remove("is-visible");
   professorSelectScreen.hidden = true;
   professorOfficeScreen.hidden = true;
+  assignmentReviewScreen.hidden = true;
+  reviewResultScreen.hidden = true;
+  courseMaterialScreen.hidden = true;
+  lectureAudioScreen.hidden = true;
   selectionModalBackdrop.hidden = true;
   featureModalBackdrop.hidden = true;
   selectionToast.hidden = true;
   closedScreen.hidden = true;
   titleScreen.hidden = false;
   titleScreen.classList.remove("is-leaving");
+  updatePlayerName();
   setSelectedMenu(0);
 }
 
@@ -1040,10 +1306,32 @@ function exitGame() {
   introScreen.hidden = true;
   professorSelectScreen.hidden = true;
   professorOfficeScreen.hidden = true;
+  assignmentReviewScreen.hidden = true;
+  reviewResultScreen.hidden = true;
+  courseMaterialScreen.hidden = true;
+  lectureAudioScreen.hidden = true;
   closedScreen.hidden = false;
 
   window.close();
   document.querySelector(".closed-screen button").focus({ preventScroll: true });
+}
+
+async function logout() {
+  try {
+    await logoutUser();
+  } catch {
+    // 쿠키가 이미 만료된 경우에도 로컬 화면은 로그인으로 되돌립니다.
+  } finally {
+    currentUser = null;
+    serverProfessors.clear();
+    professorChatHistories.clear();
+    professorLectureMaterials.clear();
+    professorPersonaProfiles.clear();
+    sessionStorage.removeItem(sessionStorageKey);
+    sessionStorage.removeItem("assignment-review-professor");
+    Object.values(authForms).forEach((form) => form.reset());
+    showAuth();
+  }
 }
 
 function handleAction(action) {
@@ -1055,11 +1343,20 @@ function handleAction(action) {
     "cancel-exit": closeExitModal,
     "confirm-exit": exitGame,
     reopen: showTitle,
+    "show-login": () => showAuthView("login"),
+    "show-signup": () => showAuthView("signup"),
     "back-to-intro": backToIntro,
     "back-to-professors": backToProfessors,
     "close-feature": closeFeature,
+    "close-review": closeAssignmentReview,
+    "back-to-review-form": backToReviewForm,
+    "open-review-report": openReviewReport,
+    "open-review-question": openReviewQuestion,
+    "close-material": closeCourseMaterial,
+    "close-audio": closeLectureAudio,
     "cancel-selection": cancelSelection,
     "confirm-selection": confirmSelection,
+    logout,
   };
 
   actions[action]?.();
@@ -1113,11 +1410,447 @@ submissionForm.addEventListener("submit", (event) => {
   openSelectionModal(customization);
 });
 
+const assignmentReviewForm = document.querySelector("#assignment-review-form");
+const reviewDropzone = document.querySelector(".review-dropzone");
+const reviewDropInput = document.querySelector(".review-drop-input");
+
+document.querySelectorAll("[data-review-file], .review-drop-input").forEach((input) => {
+  input.addEventListener("change", () => setReviewFile(input.files[0]));
+});
+
+reviewDropzone.addEventListener("click", () => reviewDropInput.click());
+reviewDropzone.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    reviewDropInput.click();
+  }
+});
+["dragenter", "dragover"].forEach((eventName) => {
+  reviewDropzone.addEventListener(eventName, (event) => {
+    event.preventDefault();
+    reviewDropzone.classList.add("is-dragging");
+  });
+});
+["dragleave", "drop"].forEach((eventName) => {
+  reviewDropzone.addEventListener(eventName, (event) => {
+    event.preventDefault();
+    reviewDropzone.classList.remove("is-dragging");
+  });
+});
+reviewDropzone.addEventListener("drop", (event) => {
+  setReviewFile(event.dataTransfer.files[0]);
+});
+
+assignmentReviewForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const prompt = new FormData(event.currentTarget).get("reviewPrompt").trim();
+  const message = document.querySelector(".review-form-message");
+  const submitButton = document.querySelector(".review-start-button");
+  const serverProfile = selectedServerProfessor();
+
+  if (!prompt) {
+    message.textContent = "첨삭 지시 프롬프트를 입력해 주세요.";
+    document.querySelector(".review-prompt-input").focus();
+    return;
+  }
+  if (!reviewFile) {
+    message.textContent = "PDF 또는 텍스트 과제 파일을 첨부해 주세요.";
+    reviewDropzone.focus();
+    return;
+  }
+  if (!serverProfile) {
+    message.textContent = "먼저 교수 선택 화면에서 교수 정보를 저장해 주세요.";
+    return;
+  }
+
+  submitButton.disabled = true;
+  message.textContent = "최신 강의자료를 불러와 과제 첨삭을 진행하고 있습니다…";
+  const controller = beginFeatureRequest();
+  try {
+    const materials = await getLectureMaterials(serverProfile.id, controller.signal);
+    professorLectureMaterials.set(selectedProfessorId, materials);
+    if (!materials.length) {
+      throw new ScholarlyApiError(
+        "저장된 강의자료가 없습니다. 먼저 강의 자료 PDF를 업로드해 주세요.",
+        422,
+      );
+    }
+    const report = await gradeAssignment({
+      lectureText: materials[0].summary,
+      assignmentText: prompt,
+      submissionFile: reviewFile,
+      signal: controller.signal,
+    });
+    sessionStorage.setItem("assignment-review-request", JSON.stringify({
+      professorId: serverProfile.id,
+      prompt,
+      fileName: reviewFile.name,
+      materialId: materials[0].id,
+      requestedAt: new Date().toISOString(),
+    }));
+    message.textContent = "";
+    showReviewResult(prompt, reviewFile.name, report);
+  } catch (error) {
+    message.textContent = apiErrorText(error, "과제 첨삭 요청에 실패했습니다.");
+  } finally {
+    submitButton.disabled = false;
+  }
+});
+
+const courseMaterialForm = document.querySelector("#course-material-form");
+const materialFileInput = document.querySelector(".material-file-input");
+const materialFileZone = document.querySelector(".material-file-zone");
+
+materialFileZone.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    materialFileInput.click();
+  }
+});
+
+function setMaterialFile(file) {
+  const status = document.querySelector(".material-file-status");
+  const message = document.querySelector(".material-form-message");
+  const isPdf = Boolean(file) && file.name.toLowerCase().endsWith(".pdf");
+
+  if (!isPdf) {
+    materialFile = null;
+    materialFileZone.classList.remove("has-file");
+    status.textContent = "";
+    status.removeAttribute("data-file-type");
+    status.removeAttribute("title");
+    message.textContent = file ? "PDF 파일만 등록할 수 있습니다." : "";
+    return;
+  }
+
+  materialFile = file;
+  materialFileZone.classList.add("has-file");
+  status.dataset.fileType = "PDF";
+  status.textContent = file.name;
+  status.title = file.name;
+  message.textContent = "";
+}
+
+materialFileInput.addEventListener("change", () => {
+  setMaterialFile(materialFileInput.files[0]);
+});
+
+["dragenter", "dragover"].forEach((eventName) => {
+  materialFileZone.addEventListener(eventName, (event) => {
+    event.preventDefault();
+    materialFileZone.classList.add("is-dragging");
+  });
+});
+["dragleave", "drop"].forEach((eventName) => {
+  materialFileZone.addEventListener(eventName, (event) => {
+    event.preventDefault();
+    materialFileZone.classList.remove("is-dragging");
+  });
+});
+materialFileZone.addEventListener("drop", (event) => {
+  setMaterialFile(event.dataTransfer.files[0]);
+});
+
+courseMaterialForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const message = document.querySelector(".material-form-message");
+  const submitButton = document.querySelector(".material-submit-button");
+  const serverProfile = selectedServerProfessor();
+  if (!materialFile) {
+    message.textContent = "등록할 PDF 강의 파일을 선택해 주세요.";
+    materialFileZone.focus();
+    return;
+  }
+  if (!serverProfile) {
+    message.textContent = "먼저 교수 선택 화면에서 교수 정보를 저장해 주세요.";
+    return;
+  }
+
+  const description = new FormData(event.currentTarget)
+    .get("materialDescription")
+    .trim();
+  const title = description.split(/\r?\n/, 1)[0].slice(0, 200)
+    || materialFile.name.replace(/\.pdf$/i, "");
+  submitButton.disabled = true;
+  message.textContent = "PDF 추출·청킹·요약·저장 중입니다…";
+  const controller = beginFeatureRequest();
+  try {
+    const material = await uploadLectureMaterial({
+      professorId: serverProfile.id,
+      title,
+      file: materialFile,
+      signal: controller.signal,
+    });
+    const existing = professorLectureMaterials.get(selectedProfessorId) || [];
+    professorLectureMaterials.set(
+      selectedProfessorId,
+      [material, ...existing.filter((item) => item.id !== material.id)],
+    );
+    sessionStorage.setItem("assignment-review-course-material", JSON.stringify({
+      professorId: serverProfile.id,
+      materialId: material.id,
+      fileName: material.file_name,
+      description,
+      uploadedAt: material.created_at,
+    }));
+    message.textContent = material.cache_hit
+      ? "이전에 요약한 PDF라 저장된 결과를 불러왔습니다."
+      : "PDF 요약과 저장이 완료되었습니다.";
+
+    document.querySelector("#feature-modal-title").textContent = "강의 자료 요약 결과";
+    const content = document.querySelector(".feature-modal-content");
+    content.innerHTML = `
+      <article class="pipeline-result">
+        <p class="result-meta"></p>
+        <h3>전체 요약</h3>
+        <pre class="result-transcript"></pre>
+      </article>
+    `;
+    content.querySelector(".result-meta").textContent =
+      `${material.title} · ${material.total_pages}페이지 · ${material.engine}`;
+    content.querySelector(".result-transcript").textContent = material.summary;
+    featureModalBackdrop.hidden = false;
+  } catch (error) {
+    message.textContent = apiErrorText(error, "강의자료 업로드에 실패했습니다.");
+  } finally {
+    submitButton.disabled = false;
+  }
+});
+
+const lectureAudioForm = document.querySelector("#lecture-audio-form");
+const audioFileInput = document.querySelector(".audio-file-input");
+const audioFileZone = document.querySelector(".audio-file-zone");
+const allowedAudioExtensions = [".mp3", ".wav", ".m4a", ".aac", ".ogg", ".webm"];
+
+function setAudioFile(file) {
+  const status = document.querySelector(".audio-file-status");
+  const message = document.querySelector(".audio-form-message");
+  const extension = file ? `.${file.name.split(".").pop().toLowerCase()}` : "";
+  const isAudioFile = Boolean(file)
+    && (file.type.startsWith("audio/") || allowedAudioExtensions.includes(extension));
+
+  if (!isAudioFile) {
+    audioFile = null;
+    audioFileZone.classList.remove("has-file");
+    status.textContent = "";
+    status.removeAttribute("data-file-type");
+    status.removeAttribute("title");
+    message.textContent = file ? "지원되는 음성 파일을 선택해 주세요." : "";
+    return;
+  }
+
+  audioFile = file;
+  audioFileZone.classList.add("has-file");
+  status.dataset.fileType = allowedAudioExtensions.includes(extension)
+    ? extension.slice(1).toUpperCase()
+    : "AUDIO";
+  status.textContent = file.name;
+  status.title = file.name;
+  message.textContent = "";
+}
+
+audioFileZone.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    audioFileInput.click();
+  }
+});
+
+audioFileInput.addEventListener("change", () => {
+  setAudioFile(audioFileInput.files[0]);
+});
+
+["dragenter", "dragover"].forEach((eventName) => {
+  audioFileZone.addEventListener(eventName, (event) => {
+    event.preventDefault();
+    audioFileZone.classList.add("is-dragging");
+  });
+});
+
+["dragleave", "drop"].forEach((eventName) => {
+  audioFileZone.addEventListener(eventName, (event) => {
+    event.preventDefault();
+    audioFileZone.classList.remove("is-dragging");
+  });
+});
+
+audioFileZone.addEventListener("drop", (event) => {
+  setAudioFile(event.dataTransfer.files[0]);
+});
+
+lectureAudioForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const message = document.querySelector(".audio-form-message");
+  const submitButton = document.querySelector(".audio-submit-button");
+  const profile = selectedProfessor();
+  const serverProfile = selectedServerProfessor();
+
+  if (!audioFile) {
+    message.textContent = "등록할 강의 음성 파일을 선택해 주세요.";
+    audioFileZone.focus();
+    return;
+  }
+  if (!serverProfile) {
+    message.textContent = "먼저 교수 선택 화면에서 교수 정보를 저장해 주세요.";
+    return;
+  }
+
+  submitButton.disabled = true;
+  message.textContent =
+    "고정 음성 전문을 확인하고, 없으면 업로드한 음성을 STT·LLM으로 분석하고 있습니다…";
+  const controller = beginFeatureRequest();
+  try {
+    const analysis = await analyzeLectureAudio({
+      professorId: serverProfile.id,
+      professorName: profile.name,
+      department: profile.department,
+      subject: profile.specialty,
+      file: audioFile,
+      signal: controller.signal,
+    });
+    professorPersonaProfiles.set(profile.id, analysis.persona_profile);
+    serverProfessors.set(profile.id, {
+      ...serverProfile,
+      persona_profile: analysis.persona_profile,
+    });
+    sessionStorage.setItem("assignment-review-lecture-audio", JSON.stringify({
+      professorId: serverProfile.id,
+      fileName: analysis.uploaded_audio_name,
+      fileType: audioFile.type,
+      fileSize: analysis.uploaded_audio_size,
+      uploadedAt: analysis.extracted_at,
+    }));
+    message.textContent = analysis.source_file_name === "transcript.txt"
+      ? "고정 음성 전문을 사용한 교수 말투 특징 추출이 완료되었습니다."
+      : "음성 STT, 강의 요약, 교수 말투 특징 추출이 완료되었습니다.";
+
+    document.querySelector("#feature-modal-title").textContent = "강의 음성 분석 결과";
+    const content = document.querySelector(".feature-modal-content");
+    content.innerHTML = `
+      <article class="pipeline-result">
+        <p class="result-meta"></p>
+        <h3>강의 요약</h3>
+        <pre class="result-summary"></pre>
+        <h3>추출된 특징</h3>
+        <pre class="result-features"></pre>
+        <h3>사용한 음성 전문</h3>
+        <pre class="result-transcript"></pre>
+      </article>
+    `;
+    content.querySelector(".result-meta").textContent =
+      `${analysis.source_file_name} · ${analysis.character_count}자 · ${analysis.engine}`;
+    content.querySelector(".result-summary").textContent = analysis.summary;
+    content.querySelector(".result-features").textContent =
+      JSON.stringify(analysis.persona_profile, null, 2);
+    content.querySelector(".result-transcript").textContent =
+      analysis.professor_transcript;
+    featureModalBackdrop.hidden = false;
+  } catch (error) {
+    message.textContent = apiErrorText(error, "강의 음성 분석에 실패했습니다.");
+  } finally {
+    submitButton.disabled = false;
+  }
+});
+
+authForms.login.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const formData = new FormData(form);
+  const accountId = formData.get("account").trim().toLowerCase();
+  const password = formData.get("password");
+  const submitButton = form.querySelector(".auth-submit");
+  submitButton.disabled = true;
+  setAuthMessage(form, "서버에서 계정을 확인하고 있습니다…", true);
+
+  try {
+    const user = await loginUser({ loginId: accountId, password });
+    currentUser = user;
+    await hydrateServerProfessors();
+    setAuthMessage(form, "확인되었습니다. 연구실 문을 여는 중입니다.", true);
+    enterTitle(user);
+  } catch (error) {
+    setAuthMessage(form, apiErrorText(error, "로그인에 실패했습니다."));
+  } finally {
+    submitButton.disabled = false;
+  }
+});
+
+authForms.signup.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const formData = new FormData(form);
+  const name = formData.get("name").trim();
+  const accountId = formData.get("account").trim().toLowerCase();
+  const password = formData.get("password");
+  const passwordConfirm = formData.get("passwordConfirm");
+  const submitButton = form.querySelector(".auth-submit");
+
+  if (password !== passwordConfirm) {
+    setAuthMessage(form, "비밀번호 확인이 일치하지 않습니다.");
+    return;
+  }
+  if (password.length < 8) {
+    setAuthMessage(form, "비밀번호를 8자 이상 입력해 주세요.");
+    return;
+  }
+
+  submitButton.disabled = true;
+  setAuthMessage(form, "수강 명단에 계정을 등록하고 있습니다…", true);
+  try {
+    const user = await registerUser({
+      loginId: accountId,
+      password,
+      displayName: name,
+      email: accountId.includes("@") ? accountId : null,
+    });
+    currentUser = user;
+    serverProfessors.clear();
+    setAuthMessage(form, "등록되었습니다. 연구실 문을 여는 중입니다.", true);
+    enterTitle(user);
+  } catch (error) {
+    setAuthMessage(form, apiErrorText(error, "회원가입에 실패했습니다."));
+  } finally {
+    submitButton.disabled = false;
+  }
+});
+
 document.addEventListener("keydown", (event) => {
   if (!featureModalBackdrop.hidden) {
     if (event.key === "Escape") {
       event.preventDefault();
       closeFeature();
+    }
+    return;
+  }
+
+  if (!assignmentReviewScreen.hidden) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeAssignmentReview();
+    }
+    return;
+  }
+
+  if (!reviewResultScreen.hidden) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      backToReviewForm();
+    }
+    return;
+  }
+
+  if (!courseMaterialScreen.hidden) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeCourseMaterial();
+    }
+    return;
+  }
+
+  if (!lectureAudioScreen.hidden) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeLectureAudio();
     }
     return;
   }
@@ -1170,7 +1903,7 @@ document.addEventListener("keydown", (event) => {
     return;
   }
 
-  if (event.key === "Escape" && titleScreen.hidden) {
+  if (event.key === "Escape" && authScreen.hidden && titleScreen.hidden) {
     event.preventDefault();
     showTitle();
   }
@@ -1184,4 +1917,22 @@ initializeProfessorRoster();
 renderProfessor(selectedProfessorId);
 setSelectedMenu(0);
 
-showTitle();
+async function bootstrapAuth() {
+  try {
+    const user = await getCurrentUser();
+    currentUser = user;
+    await hydrateServerProfessors();
+    enterTitle(user, false);
+  } catch (error) {
+    sessionStorage.removeItem(sessionStorageKey);
+    showAuth();
+    if (error instanceof ScholarlyApiError && error.status !== 401) {
+      setAuthMessage(
+        authForms.login,
+        apiErrorText(error, "로그인 서버 상태를 확인하지 못했습니다."),
+      );
+    }
+  }
+}
+
+void bootstrapAuth();

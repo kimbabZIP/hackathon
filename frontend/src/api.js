@@ -37,6 +37,7 @@ async function requestJson(path, options = {}, timeoutMs = DEFAULT_TIMEOUT_MS) {
 
   try {
     const response = await fetch(`${API_BASE}${path}`, {
+      credentials: "same-origin",
       ...options,
       signal: controller.signal,
     });
@@ -62,11 +63,67 @@ async function requestJson(path, options = {}, timeoutMs = DEFAULT_TIMEOUT_MS) {
       throw new DOMException("요청이 취소되었습니다.", "AbortError");
     }
     if (timedOut) throw new ScholarlyApiError("서버 응답 제한 시간을 초과했습니다.");
-    throw new ScholarlyApiError("통합 FastAPI 서버에 연결할 수 없습니다. npm run api 실행 상태를 확인해 주세요.");
+    throw new ScholarlyApiError(
+      "통합 FastAPI 서버에 연결할 수 없습니다. npm run api 실행 상태를 확인해 주세요.",
+    );
   } finally {
     window.clearTimeout(timeoutId);
     externalSignal?.removeEventListener("abort", abortFromExternal);
   }
+}
+
+export async function getCurrentUser(signal) {
+  const response = await requestJson("/auth/me", { method: "GET", signal }, 10_000);
+  return response.user;
+}
+
+export async function loginUser({ loginId, password, signal }) {
+  const response = await requestJson("/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ login_id: loginId, password }),
+    signal,
+  }, 15_000);
+  return response.user;
+}
+
+export async function registerUser({ loginId, password, displayName, email, signal }) {
+  const response = await requestJson("/auth/register", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      login_id: loginId,
+      password,
+      display_name: displayName,
+      email: email || null,
+    }),
+    signal,
+  }, 15_000);
+  return response.user;
+}
+
+export function logoutUser(signal) {
+  return requestJson("/auth/logout", { method: "POST", signal }, 10_000);
+}
+
+export function getProfessors(signal) {
+  return requestJson("/professors", { method: "GET", signal }, 15_000);
+}
+
+export function saveProfessor(profile, signal) {
+  return requestJson("/professors", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(profile),
+    signal,
+  }, 15_000);
+}
+
+export function selectProfessor(professorId, signal) {
+  return requestJson(`/professors/${encodeURIComponent(professorId)}/select`, {
+    method: "POST",
+    signal,
+  }, 15_000);
 }
 
 export function getLectureMaterials(professorId, signal) {
@@ -107,7 +164,14 @@ export function sendProfessorChat({ professorId, message, history, persona, sign
   });
 }
 
-export function analyzeLectureAudio({ professorId, professorName, department, subject, file, signal }) {
+export function analyzeLectureAudio({
+  professorId,
+  professorName,
+  department,
+  subject,
+  file,
+  signal,
+}) {
   const body = new FormData();
   body.append("professor_id", professorId);
   body.append("professor_name", professorName);

@@ -2,11 +2,15 @@ from __future__ import annotations
 
 import asyncio
 import json
+from pathlib import Path
 from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
 
 from assignment_grader import auth as auth_module
+from assignment_grader import lecture_audio as lecture_audio_module
+from audio_pipeline import extractor as audio_extractor_module
+from google.genai import types as genai_types
 from assignment_grader.auth import AuthStore
 from assignment_grader.database import AppDatabase
 from assignment_grader.documents import DocumentError, extract_text
@@ -142,7 +146,11 @@ def test_register_login_session_and_professor_database(monkeypatch, tmp_path) ->
     assert client.get("/api/auth/me").status_code == 401
 
 
-def test_mock_audio_analysis_uses_fixed_transcript() -> None:
+def test_mock_audio_analysis_uses_fixed_transcript(monkeypatch, tmp_path: Path) -> None:
+    transcript_path = tmp_path / "transcript.txt"
+    transcript_path.write_text("고정 전문 첫 문장입니다.\n고정 전문 두 번째 문장입니다.", encoding="utf-8")
+    monkeypatch.setattr(lecture_audio_module, "TRANSCRIPT_PATH", transcript_path)
+
     client = TestClient(app)
     response = client.post(
         "/api/audio/analyze",
@@ -161,6 +169,137 @@ def test_mock_audio_analysis_uses_fixed_transcript() -> None:
     assert payload["uploaded_audio_name"] == "lecture.mp3"
     assert payload["professor_transcript"]
     assert payload["persona_profile"]["dna"]["sentence_endings"]
+
+
+def test_audio_analysis_falls_back_to_real_pipeline_when_transcript_is_missing(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    calls: dict[str, object] = {}
+
+    class FakeAudioProfessorExtractor:
+        def __init__(self, model_name: str):
+            calls["model_name"] = model_name
+
+        async def extract_from_audio_async(
+            self,
+            audio_file_path: str,
+            *,
+            professor_context: dict[str, str] | None = None,
+            progress_id: str = "unknown",
+        ):
+            calls["audio_bytes"] = Path(audio_file_path).read_bytes()
+            calls["professor_context"] = professor_context
+            calls["progress_id"] = progress_id
+            return lecture_audio_module.AudioExtractionResult(
+                professor_transcript="자, 오늘은 그래프 탐색을 설명하겠습니다.",
+                full_diarized_transcript="[Speaker 1 (Professor)]: 자, 오늘은 그래프 탐색을 설명하겠습니다.",
+                summary="그래프 탐색의 핵심 개념을 설명한 강의입니다.",
+                persona_profile={
+                    "summary_bio": "핵심부터 설명하는 교수",
+                    "dna": {
+                        "sentence_endings": ["~하겠습니다"],
+                        "filler_words": ["자"],
+                        "tone_description": "차분한 설명형 어조",
+                    },
+                },
+            )
+
+        def close(self) -> None:
+            calls["closed"] = True
+
+    monkeypatch.setattr(lecture_audio_module, "TRANSCRIPT_PATH", tmp_path / "missing-transcript.txt")
+    monkeypatch.setattr(lecture_audio_module, "AudioProfessorExtractor", FakeAudioProfessorExtractor)
+    monkeypatch.setenv("AUDIO_GEMINI_MODEL", "gemini-audio-test")
+
+    client = TestClient(app)
+    response = client.post(
+        "/api/audio/analyze",
+        data={
+            "professor_id": "prof-audio",
+            "professor_name": "테스트 교수",
+            "department": "컴퓨터공학과",
+            "subject": "그래프 알고리즘",
+        },
+        files={"file": ("real-lecture.wav", b"real audio bytes", "audio/wav")},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert calls["audio_bytes"] == b"real audio bytes"
+    assert calls["model_name"] == "gemini-audio-test"
+    assert len(str(calls["progress_id"])) == 8
+    assert calls["professor_context"] == {
+        "professor_name": "테스트 교수",
+        "department": "컴퓨터공학과",
+        "subject": "그래프 알고리즘",
+    }
+    assert calls["closed"] is True
+    assert payload["source_file_name"] == "real-lecture.wav"
+    assert payload["summary"] == "그래프 탐색의 핵심 개념을 설명한 강의입니다."
+    assert payload["persona_profile"]["dna"]["sentence_endings"] == ["~하겠습니다"]
+    assert payload["engine"] == "Gemini AudioProfessorExtractor · gemini-audio-test"
+
+
+def test_audio_extractor_separates_plain_transcript_from_structured_analysis(tmp_path: Path) -> None:
+    audio_path = tmp_path / "lecture.wav"
+    audio_path.write_bytes(b"fake wav")
+    calls: list[dict[str, object]] = []
+
+    class FakeFiles:
+        def upload(self, *, file: str):
+            return SimpleNamespace(
+                name="files/test-audio",
+                mime_type="audio/wav",
+                state=genai_types.FileState.ACTIVE,
+                error=None,
+            )
+
+        def delete(self, *, name: str):
+            calls.append({"deleted": name})
+
+    class FakeModels:
+        def generate_content(self, *, model: str, contents, config):
+            calls.append({"model": model, "contents": contents, "config": config})
+            if len([call for call in calls if "config" in call]) == 1:
+                return SimpleNamespace(
+                    text='교수는 "정렬"이라고 했습니다.\n다음 개념을 설명하겠습니다.',
+                    parsed=None,
+                    candidates=[SimpleNamespace(finish_reason=genai_types.FinishReason.STOP)],
+                    usage_metadata=SimpleNamespace(candidates_token_count=25),
+                )
+            return SimpleNamespace(
+                text='{"summary":"정렬 강의"}',
+                parsed=audio_extractor_module.TranscriptAnalysisResult(
+                    summary="정렬 개념을 설명한 강의입니다.",
+                    persona_profile={
+                        "summary_bio": "예시 중심 교수",
+                        "dna": {"sentence_endings": ["~하겠습니다"]},
+                    },
+                ),
+                candidates=[SimpleNamespace(finish_reason=genai_types.FinishReason.STOP)],
+                usage_metadata=SimpleNamespace(candidates_token_count=40),
+            )
+
+    extractor = audio_extractor_module.AudioProfessorExtractor.__new__(
+        audio_extractor_module.AudioProfessorExtractor
+    )
+    extractor.client = SimpleNamespace(files=FakeFiles(), models=FakeModels())
+    extractor.model_name = "gemini-audio-test"
+    extractor.max_output_tokens = 65_536
+
+    result = asyncio.run(
+        extractor.extract_from_audio_async(str(audio_path), progress_id="jsonsafe")
+    )
+
+    generation_calls = [call for call in calls if "config" in call]
+    assert len(generation_calls) == 2
+    assert generation_calls[0]["config"].response_mime_type == "text/plain"
+    assert generation_calls[1]["config"].response_schema is audio_extractor_module.TranscriptAnalysisResult
+    assert generation_calls[0]["config"].automatic_function_calling.disable is True
+    assert result.professor_transcript.startswith('교수는 "정렬"')
+    assert result.summary == "정렬 개념을 설명한 강의입니다."
+    assert calls[-1] == {"deleted": "files/test-audio"}
 
 
 def test_web_examples_and_grade() -> None:

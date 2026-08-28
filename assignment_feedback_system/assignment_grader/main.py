@@ -22,7 +22,7 @@ database.ensure_schema()
 
 app = FastAPI(
     title="Scholarly Affection API",
-    description="과제 첨삭, 강의자료 PDF 요약·저장, 모의 강의 음성 분석, 교수 페르소나 대화를 제공하는 통합 FastAPI 서버",
+    description="과제 첨삭, 강의자료 PDF 요약·저장, 강의 음성 STT·요약, 교수 페르소나 대화를 제공하는 통합 FastAPI 서버",
     version="1.0.0",
 )
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
