@@ -10,6 +10,9 @@ export default defineConfig(({ mode }) => {
     API_SERVER_ORIGIN;
 
   return {
+    optimizeDeps: {
+      exclude: ["@ffmpeg/ffmpeg"],
+    },
     server: {
       proxy: {
         "/scholarly-api": {

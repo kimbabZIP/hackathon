@@ -12,6 +12,7 @@ import {
   sendProfessorChat,
   uploadLectureMaterial,
 } from "./api.js";
+import { prepareAudioForUpload } from "./audioPreprocessor.js";
 
 const authScreen = document.querySelector(".auth-screen");
 const titleScreen = document.querySelector(".title-screen");
@@ -1842,26 +1843,87 @@ audioFileZone.addEventListener("drop", (event) => {
   setAudioFile(event.dataTransfer.files[0]);
 });
 
-lectureAudioForm.addEventListener("submit", (event) => {
+lectureAudioForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const message = document.querySelector(".audio-form-message");
+  const submitButton = document.querySelector(".audio-submit-button");
+  const profile = selectedProfessor();
+  const serverProfile = selectedServerProfessor();
 
   if (!audioFile) {
     message.textContent = "등록할 강의 음성 파일을 선택해 주세요.";
     audioFileZone.focus();
     return;
   }
+  if (!serverProfile) {
+    message.textContent = "먼저 교수 선택 화면에서 교수 정보를 저장해 주세요.";
+    return;
+  }
 
-  sessionStorage.setItem("assignment-review-lecture-audio", JSON.stringify({
-    professorId: selectedProfessorId,
-    fileName: audioFile.name,
-    fileType: audioFile.type,
-    fileSize: audioFile.size,
-    status: "ready",
-    uploadedAt: new Date().toISOString(),
-  }));
-  updateAiFeatureAvailability();
-  message.textContent = "강의 음성이 등록되어 챗봇과 과제 첨삭이 활성화되었습니다.";
+  submitButton.disabled = true;
+  const controller = beginFeatureRequest();
+  try {
+    const preparedAudio = await prepareAudioForUpload(audioFile, {
+      signal: controller.signal,
+      onStatus: (status) => {
+        message.textContent = status;
+      },
+    });
+    const uploadFile = preparedAudio.file;
+    message.textContent =
+      "고정 음성 전문을 확인하고, 없으면 업로드한 음성을 STT·LLM으로 분석하고 있습니다…";
+    const analysis = await analyzeLectureAudio({
+      professorId: serverProfile.id,
+      professorName: profile.name,
+      department: profile.department,
+      subject: profile.specialty,
+      file: uploadFile,
+      signal: controller.signal,
+    });
+    professorPersonaProfiles.set(profile.id, analysis.persona_profile);
+    serverProfessors.set(profile.id, {
+      ...serverProfile,
+      persona_profile: analysis.persona_profile,
+    });
+    sessionStorage.setItem("assignment-review-lecture-audio", JSON.stringify({
+      professorId: selectedProfessorId,
+      fileName: analysis.uploaded_audio_name,
+      fileType: uploadFile.type,
+      fileSize: analysis.uploaded_audio_size,
+      status: "ready",
+      uploadedAt: analysis.extracted_at,
+    }));
+    updateAiFeatureAvailability();
+    message.textContent = analysis.source_file_name === "transcript.txt"
+      ? "고정 음성 전문을 사용한 교수 말투 특징 추출이 완료되었습니다."
+      : "음성 분석이 완료되어 챗봇과 과제 첨삭이 활성화되었습니다.";
+
+    document.querySelector("#feature-modal-title").textContent = "강의 음성 분석 결과";
+    const content = document.querySelector(".feature-modal-content");
+    content.innerHTML = `
+      <article class="pipeline-result">
+        <p class="result-meta"></p>
+        <h3>강의 요약</h3>
+        <pre class="result-summary"></pre>
+        <h3>추출된 특징</h3>
+        <pre class="result-features"></pre>
+        <h3>사용한 음성 전문</h3>
+        <pre class="result-transcript"></pre>
+      </article>
+    `;
+    content.querySelector(".result-meta").textContent =
+      `${analysis.source_file_name} · ${analysis.character_count}자 · ${analysis.engine}`;
+    content.querySelector(".result-summary").textContent = analysis.summary;
+    content.querySelector(".result-features").textContent =
+      JSON.stringify(analysis.persona_profile, null, 2);
+    content.querySelector(".result-transcript").textContent =
+      analysis.professor_transcript;
+    featureModalBackdrop.hidden = false;
+  } catch (error) {
+    message.textContent = apiErrorText(error, "강의 음성 분석에 실패했습니다.");
+  } finally {
+    submitButton.disabled = false;
+  }
 });
 
 document.querySelector("#chatbot-direct-form").addEventListener("submit", (event) => {
