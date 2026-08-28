@@ -154,18 +154,15 @@ $env:SCHOLARLY_PYTHON="C:\Python312\python.exe"
 npm run api
 ```
 
-프론트엔드의 Vite 프록시가 다른 백엔드를 바라봐야 한다면 프론트엔드 `.env.local`에 다음 값을 설정합니다.
-
-```dotenv
-SCHOLARLY_API_TARGET=http://127.0.0.1:8010
-```
+프론트엔드의 API 서버 주소는 Vercel 환경변수 없이 `frontend/vite.config.js`와
+`frontend/vercel.json`에서 관리합니다. 현재 대상은 `http://3.122.56.68:8010/api`입니다.
 
 ## 실행 확인
 
 브라우저에서 다음 주소를 엽니다.
 
-- 상태: `http://127.0.0.1:8010/api/health`
-- Swagger UI: `http://127.0.0.1:8010/docs`
+- 로컬 상태 확인: `http://127.0.0.1:8010/api/health`
+- 로컬 Swagger UI: `http://127.0.0.1:8010/docs`
 
 Windows PowerShell:
 
@@ -260,7 +257,7 @@ Windows에서는 `./.venv/bin/python` 대신 `.\.venv\Scripts\python.exe`를 사
 SCHOLARLY_API_PORT=8011 npm run api
 ```
 
-포트를 변경했다면 프론트엔드의 `SCHOLARLY_API_TARGET`도 같은 포트로 변경합니다.
+포트를 변경했다면 `frontend/vite.config.js`와 `frontend/vercel.json`의 주소도 함께 변경합니다.
 
 ### 프론트엔드에서 백엔드 연결 실패
 
@@ -270,6 +267,9 @@ SCHOLARLY_API_PORT=8011 npm run api
 2. 백엔드 포트와 `SCHOLARLY_API_TARGET`이 일치하는지 확인합니다.
 3. Linux 서버의 방화벽 또는 클라우드 보안 그룹이 해당 포트를 허용하는지 확인합니다.
 4. 원격 접속이면 `SCHOLARLY_API_HOST=0.0.0.0`으로 실행했는지 확인합니다.
+
+현재 통합 실행 스크립트는 원격 배포를 위해 기본적으로 `0.0.0.0:8010`에 바인딩합니다.
+AWS EC2에서는 보안 그룹의 인바운드 TCP 8010 포트도 허용해야 합니다.
 
 ### PDF 요약 또는 AI 대화 실패
 

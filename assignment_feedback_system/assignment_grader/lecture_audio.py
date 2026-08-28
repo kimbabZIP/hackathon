@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
+import shutil
+import subprocess
 import sys
+import wave
 from datetime import datetime, timezone
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -17,6 +21,7 @@ from audio_pipeline import AudioExtractionResult, AudioProfessorExtractor
 from assignment_grader.schemas import LectureAudioAnalysis
 
 TRANSCRIPT_PATH = WORKSPACE_ROOT / "scholarly-affection" / "transcript.txt"
+AUDIO_CLIP_SECONDS = 5 * 60
 logger = logging.getLogger("uvicorn.error")
 
 
@@ -32,6 +37,77 @@ def fixed_transcript_available() -> bool:
         return _read_fixed_transcript() is not None
     except OSError:
         return False
+
+
+def _resolve_ffmpeg_executable() -> str:
+    configured_path = os.getenv("AUDIO_FFMPEG_PATH", "").strip()
+    if configured_path:
+        resolved_path = Path(configured_path).expanduser().resolve()
+        if not resolved_path.is_file():
+            raise RuntimeError(f"AUDIO_FFMPEG_PATH에 지정한 FFmpeg를 찾을 수 없습니다: {resolved_path}")
+        return str(resolved_path)
+
+    system_ffmpeg = shutil.which("ffmpeg")
+    if system_ffmpeg:
+        return system_ffmpeg
+
+    try:
+        import imageio_ffmpeg
+
+        return imageio_ffmpeg.get_ffmpeg_exe()
+    except (ImportError, RuntimeError) as exc:
+        raise RuntimeError(
+            "음성 5분 자르기에 필요한 FFmpeg를 찾을 수 없습니다. "
+            "requirements.txt를 다시 설치하거나 AUDIO_FFMPEG_PATH를 설정해 주세요."
+        ) from exc
+
+
+def _clip_audio_for_stt(
+    source_path: Path,
+    output_path: Path,
+    *,
+    max_seconds: int = AUDIO_CLIP_SECONDS,
+) -> float:
+    """입력의 앞부분만 16kHz 모노 WAV로 변환하고 실제 출력 길이를 반환합니다."""
+    ffmpeg_executable = _resolve_ffmpeg_executable()
+    completed = subprocess.run(
+        [
+            ffmpeg_executable,
+            "-nostdin",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-y",
+            "-i",
+            str(source_path),
+            "-t",
+            str(max_seconds),
+            "-map",
+            "0:a:0",
+            "-vn",
+            "-ac",
+            "1",
+            "-ar",
+            "16000",
+            "-c:a",
+            "pcm_s16le",
+            str(output_path),
+        ],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=600,
+        check=False,
+    )
+    if completed.returncode != 0 or not output_path.is_file() or output_path.stat().st_size == 0:
+        error_message = completed.stderr.strip()[-2_000:] or "알 수 없는 FFmpeg 오류"
+        raise RuntimeError(f"업로드 음성의 앞 5분을 준비하지 못했습니다: {error_message}")
+
+    with wave.open(str(output_path), "rb") as wav_file:
+        frame_rate = wav_file.getframerate()
+        duration_seconds = wav_file.getnframes() / frame_rate if frame_rate else 0.0
+    return min(duration_seconds, float(max_seconds))
 
 
 def _normalize_persona_profile(
@@ -231,16 +307,28 @@ async def analyze_lecture_audio(
     extractor: AudioProfessorExtractor | None = None
     with TemporaryDirectory(prefix="scholarly-audio-") as temp_dir:
         audio_path = Path(temp_dir) / f"lecture{suffix}"
+        clipped_audio_path = Path(temp_dir) / "lecture-first-5-minutes.wav"
         audio_path.write_bytes(audio_bytes)
         logger.info(
-            "[audio:%s] [2/6] 서버 임시 음성 파일 준비 완료 (크기=%.2f MB)",
+            "[audio:%s] [2/6] 원본 임시 파일 준비 완료; 앞 5분 자르기 시작 (크기=%.2f MB)",
             progress_id,
             len(audio_bytes) / (1024 * 1024),
+        )
+        analyzed_seconds = await asyncio.to_thread(
+            _clip_audio_for_stt,
+            audio_path,
+            clipped_audio_path,
+        )
+        logger.info(
+            "[audio:%s] [2/6] STT 입력 준비 완료 (사용길이=%.1f초/최대300초, 변환크기=%.2f MB)",
+            progress_id,
+            analyzed_seconds,
+            clipped_audio_path.stat().st_size / (1024 * 1024),
         )
         try:
             extractor = AudioProfessorExtractor(model_name=model_name)
             extracted: AudioExtractionResult = await extractor.extract_from_audio_async(
-                str(audio_path),
+                str(clipped_audio_path),
                 professor_context={
                     "professor_name": professor_name,
                     "department": department,
@@ -282,7 +370,7 @@ async def analyze_lecture_audio(
         character_count=len(professor_transcript),
         line_count=len(transcript_lines),
         extracted_at=datetime.now(timezone.utc).isoformat(),
-        engine=f"Gemini AudioProfessorExtractor · {model_name}",
+        engine=f"Gemini AudioProfessorExtractor · {model_name} · first {AUDIO_CLIP_SECONDS}s",
     )
     logger.info(
         "[audio:%s] [응답] FastAPI 응답 구성 완료 (전문=%d자, 요약=%d자)",

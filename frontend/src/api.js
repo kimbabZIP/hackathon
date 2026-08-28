@@ -1,4 +1,6 @@
-const API_BASE = import.meta.env.VITE_SCHOLARLY_API_BASE || "/scholarly-api";
+const API_BASE = (
+  import.meta.env.VITE_SCHOLARLY_API_BASE?.trim() || "/scholarly-api"
+).replace(/\/+$/, "");
 
 const DEFAULT_TIMEOUT_MS = 90_000;
 const PDF_TIMEOUT_MS = 6 * 60_000;
@@ -37,7 +39,7 @@ async function requestJson(path, options = {}, timeoutMs = DEFAULT_TIMEOUT_MS) {
 
   try {
     const response = await fetch(`${API_BASE}${path}`, {
-      credentials: "same-origin",
+      credentials: "include",
       ...options,
       signal: controller.signal,
     });

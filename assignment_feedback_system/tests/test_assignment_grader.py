@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import wave
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -208,8 +209,15 @@ def test_audio_analysis_falls_back_to_real_pipeline_when_transcript_is_missing(
         def close(self) -> None:
             calls["closed"] = True
 
+    def fake_clip_audio(source_path: Path, output_path: Path, *, max_seconds: int = 300) -> float:
+        calls["original_audio_bytes"] = source_path.read_bytes()
+        calls["clip_max_seconds"] = max_seconds
+        output_path.write_bytes(b"first five minutes only")
+        return 300.0
+
     monkeypatch.setattr(lecture_audio_module, "TRANSCRIPT_PATH", tmp_path / "missing-transcript.txt")
     monkeypatch.setattr(lecture_audio_module, "AudioProfessorExtractor", FakeAudioProfessorExtractor)
+    monkeypatch.setattr(lecture_audio_module, "_clip_audio_for_stt", fake_clip_audio)
     monkeypatch.setenv("AUDIO_GEMINI_MODEL", "gemini-audio-test")
 
     client = TestClient(app)
@@ -226,7 +234,9 @@ def test_audio_analysis_falls_back_to_real_pipeline_when_transcript_is_missing(
 
     assert response.status_code == 200
     payload = response.json()
-    assert calls["audio_bytes"] == b"real audio bytes"
+    assert calls["original_audio_bytes"] == b"real audio bytes"
+    assert calls["audio_bytes"] == b"first five minutes only"
+    assert calls["clip_max_seconds"] == 300
     assert calls["model_name"] == "gemini-audio-test"
     assert len(str(calls["progress_id"])) == 8
     assert calls["professor_context"] == {
@@ -238,7 +248,30 @@ def test_audio_analysis_falls_back_to_real_pipeline_when_transcript_is_missing(
     assert payload["source_file_name"] == "real-lecture.wav"
     assert payload["summary"] == "그래프 탐색의 핵심 개념을 설명한 강의입니다."
     assert payload["persona_profile"]["dna"]["sentence_endings"] == ["~하겠습니다"]
-    assert payload["engine"] == "Gemini AudioProfessorExtractor · gemini-audio-test"
+    assert payload["engine"] == "Gemini AudioProfessorExtractor · gemini-audio-test · first 300s"
+
+
+def test_audio_clip_discards_everything_after_limit(tmp_path: Path) -> None:
+    source_path = tmp_path / "two-seconds.wav"
+    output_path = tmp_path / "first-second.wav"
+    with wave.open(str(source_path), "wb") as wav_file:
+        wav_file.setnchannels(1)
+        wav_file.setsampwidth(2)
+        wav_file.setframerate(8_000)
+        wav_file.writeframes(b"\x00\x00" * 16_000)
+
+    duration = lecture_audio_module._clip_audio_for_stt(
+        source_path,
+        output_path,
+        max_seconds=1,
+    )
+
+    with wave.open(str(output_path), "rb") as clipped_file:
+        clipped_duration = clipped_file.getnframes() / clipped_file.getframerate()
+        assert clipped_file.getnchannels() == 1
+        assert clipped_file.getframerate() == 16_000
+    assert 0.99 <= duration <= 1.0
+    assert 0.99 <= clipped_duration <= 1.0
 
 
 def test_audio_extractor_separates_plain_transcript_from_structured_analysis(tmp_path: Path) -> None:

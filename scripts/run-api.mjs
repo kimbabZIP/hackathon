@@ -26,7 +26,7 @@ if (!configuredPython && !existsSync(venvPython)) {
   process.exit(1);
 }
 
-const host = process.env.SCHOLARLY_API_HOST?.trim() || "127.0.0.1";
+const host = process.env.SCHOLARLY_API_HOST?.trim() || "0.0.0.0";
 const port = process.env.SCHOLARLY_API_PORT?.trim() || "8010";
 
 if (process.argv.includes("--check")) {

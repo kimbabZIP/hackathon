@@ -1,5 +1,6 @@
 fastapi>=0.116
 google-genai>=1.40
+imageio-ffmpeg>=0.6.0
 pydantic>=2.11
 pymupdf>=1.23.0
 pypdf>=6.0

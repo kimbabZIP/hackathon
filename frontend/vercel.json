@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/scholarly-api/:path*",
+      "destination": "http://3.122.56.68:8010/api/:path*"
+    }
+  ]
+}
