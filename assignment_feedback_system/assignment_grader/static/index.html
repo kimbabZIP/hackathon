@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>LectureLens · 과제 첨삭</title><link rel="stylesheet" href="/static/style.css"></head>
+<body>
+<header class="topbar"><a class="brand" href="/"><span>L</span> LectureLens</a><small id="status">시스템 확인 중</small></header>
+<main>
+  <section class="hero"><div><p class="eyebrow">LECTURE-GROUNDED FEEDBACK</p><h1>강의에서 배운 기준으로,<br><em>과제를 더 정확하게.</em></h1><p class="lead">강의 요약본과 교수의 지시문을 근거로 학생 답안을 분석합니다. 점수보다 중요한 “왜”와 “어떻게 고칠지”를 함께 보여줍니다.</p></div><aside><span>평가 기준</span><b>요구사항 · 개념 · 근거 · 표현</b><small>결과는 교수자의 최종 판단을 보조합니다.</small></aside></section>
+  <section class="workspace">
+    <div class="panel input-panel">
+      <div class="panel-head"><div><span class="step">01</span><h2>자료 입력</h2></div><button class="ghost" id="resetBtn">초기화</button></div>
+      <div class="examples"><span>빠른 테스트</span><div id="exampleButtons"></div></div>
+      <form id="gradeForm">
+        <div class="field"><label><b>강의 요약본</b><small>평가의 개념 기준</small></label><div class="tabs"><button type="button" class="tab active" data-mode="text">텍스트</button><button type="button" class="tab" data-mode="file">파일</button></div><textarea name="lecture_text" placeholder="강의자료에서 생성된 요약본을 붙여넣으세요."></textarea><input type="file" name="lecture_file" accept=".txt,.md,.pdf,.docx"><p class="file-name"></p></div>
+        <div class="field"><label><b>교수 과제 내용</b><small>필수 요구사항과 평가 범위</small></label><div class="tabs"><button type="button" class="tab active" data-mode="text">텍스트</button><button type="button" class="tab" data-mode="file">파일</button></div><textarea name="assignment_text" placeholder="교수가 제시한 과제 지시문을 붙여넣으세요."></textarea><input type="file" name="assignment_file" accept=".txt,.md,.pdf,.docx"><p class="file-name"></p></div>
+        <div class="field"><label><b>학생 제출 과제</b><small>첨삭할 원문</small></label><div class="tabs"><button type="button" class="tab active" data-mode="text">텍스트</button><button type="button" class="tab" data-mode="file">파일</button></div><textarea name="submission_text" placeholder="학생이 제출한 과제 내용을 붙여넣으세요."></textarea><input type="file" name="submission_file" accept=".txt,.md,.pdf,.docx"><p class="file-name"></p></div>
+        <button class="primary" type="submit"><span>과제 분석 시작</span><span>→</span></button><p class="support">TXT · MD · PDF · DOCX / 파일당 최대 12MB</p>
+      </form>
+    </div>
+    <div class="panel result-panel" id="resultPanel">
+      <div class="empty" id="emptyState"><div class="empty-orbit"><span>✦</span></div><h2>첨삭 결과가 여기에 표시됩니다</h2><p>왼쪽에서 예제를 선택하거나 세 가지 자료를 입력해 분석을 시작하세요.</p></div>
+      <div class="loading hidden" id="loading"><div class="loader"></div><h2>과제의 논리를 읽고 있습니다</h2><p>요구사항과 강의 개념을 교차 확인하는 중...</p></div>
+      <article class="report hidden" id="report"><div class="report-top"><div class="score-ring"><span id="score">0</span><small>/ 100</small></div><div><p class="eyebrow" id="engine"></p><h2 id="gradeTitle"></h2><p id="summary"></p></div></div><div class="criteria" id="criteria"></div><div class="report-grid"><section><h3><i class="green"></i>잘한 점</h3><ul id="strengths"></ul></section><section><h3><i class="orange"></i>수정 우선순위</h3><ol id="priorities"></ol></section></div><section class="misconceptions hidden" id="misconceptionBox"><h3>개념 바로잡기</h3><ul id="misconceptions"></ul></section><section><h3>문장별 첨삭</h3><div id="lineEdits"></div></section><section class="improved"><h3>개선 방향 예시</h3><p id="improved"></p></section><p class="caution" id="caution"></p></article>
+    </div>
+  </section>
+</main><script src="/static/app.js"></script></body></html>

@@ -1,0 +1,91 @@
+{
+  "assignment_id": "assign_git_01",
+  "base_version": 1,
+  "target_version": 2,
+  "overall_growth_rate": 250.0,
+  "total_score_before": 10,
+  "total_score_after": 35,
+  "total_score_delta": 25,
+  "criterion_results": [
+    {
+      "criterion_id": "crit_commit_convention",
+      "criterion_name": "커밋 메시지 규칙 준수",
+      "category": "COURSE_SPECIFIC",
+      "max_score": 30,
+      "weight": 30,
+      "v1_verdict": "NOT_MET",
+      "v2_verdict": "MET",
+      "result": "IMPROVED",
+      "score_before": 5,
+      "score_after": 30,
+      "score_delta": 25,
+      "score_min": 25,
+      "score_max": 30,
+      "achievement_rate": 100.0,
+      "confidence": "HIGH",
+      "previous_problem_quote": "커밋 메시지를 '수정함', 'bug fix'로 통일하여 빠르게 커밋하였습니다.",
+      "revised_sentence": "Conventional Commits 규칙에 따라 'feat: 사용자 로그인 API 추가', 'fix: 토큰 만료 버그 수정'과 같이 변경 목적과 영향 범위를 명확히 작성하였습니다.",
+      "reason": "허허, 지난번에 '수정함' 따위로 대충 때우던 걸 보고 내가 깜짝 놀랐지 말일세. 이번에 보니 'feat'랑 'fix' 붙여가며 아주 깔끔하게 고쳐놓았구먼! 이렇게 변경 이유가 쏙 들어오게 적어야 나중에 협업할 때 목숨을 건지는 법이라네.",
+      "action": "앞으로도 지금처럼 커밋 메시지만 봐도 무슨 짓을 했는지 알 수 있게 습관을 잘 들여오게나.",
+      "evidence_chunk_ids": [
+        "chunk_git_01"
+      ],
+      "expression": "SMILE"
+    },
+    {
+      "criterion_id": "crit_branch_strategy",
+      "criterion_name": "브랜치 분기 및 충돌 방지 전략",
+      "category": "COURSE_SPECIFIC",
+      "max_score": 40,
+      "weight": 40,
+      "v1_verdict": "NOT_MET",
+      "v2_verdict": "NOT_MET",
+      "result": "MAINTAINED",
+      "score_before": 5,
+      "score_after": 5,
+      "score_delta": 0,
+      "score_min": 0,
+      "score_max": 10,
+      "achievement_rate": 12.5,
+      "confidence": "HIGH",
+      "previous_problem_quote": "모든 팀원이 main 브랜치에 직접 커밋 및 push를 진행하였습니다.",
+      "revised_sentence": "다만 충돌 시 덮어쓰기 대신 팀원 간 구두로 확인 후 덮어쓰도록 규칙을 바꿨습니다.",
+      "reason": "아니 자네들, 고속도로 역주행을 입으로 합의하고 하면 사고가 안 날 줄 아는가? main 브랜치 직접 push는 고속도로 역주행이랑 똑같다니까 그러네! 구두 합의는 기록에 안 남아서 아무 소용이 없어요. 왜 feature 브랜치를 안 따는 겐가?",
+      "action": "당장 main 직접 push 버릇 버리고, feature 브랜치 파서 Pull Request 올리는 정석대로 다시 해오게나.",
+      "evidence_chunk_ids": [
+        "chunk_git_02"
+      ],
+      "expression": "WARNING"
+    },
+    {
+      "criterion_id": "crit_readme_completeness",
+      "criterion_name": "README 문서화 완성도",
+      "category": "COURSE_SPECIFIC",
+      "max_score": 30,
+      "weight": 30,
+      "v1_verdict": "NOT_MET",
+      "v2_verdict": "NOT_MET",
+      "result": "REGRESSED",
+      "score_before": 0,
+      "score_after": 0,
+      "score_delta": 0,
+      "score_min": 0,
+      "score_max": 5,
+      "achievement_rate": 0.0,
+      "confidence": "HIGH",
+      "previous_problem_quote": "별도의 실행 환경 및 빌드 가이드는 작성하지 않았습니다.",
+      "revised_sentence": "README에 '본 프로젝트는 매우 훌륭한 시스템입니다'라는 소개 문구만 한 줄 추가하였습니다.",
+      "reason": "이 사람아, 밑 빠진 독에 물 붓기지 이게 뭐하는 짓인가? 빌드 방법이랑 실행 가이드를 쓰라니까 무슨 약장수처럼 홍보 문구만 한 줄 띡 적어놓으면 고마워서 점수를 줄 줄 알았나? 이건 전보다 더 퇴보했구먼!",
+      "action": "README에 사전 요구사항, npm install 같은 설치 명령어, 그리고 실행 가이드를 당장 상세히 적어 넣으라 줄 알게.",
+      "evidence_chunk_ids": [
+        "chunk_git_03"
+      ],
+      "expression": "WARNING"
+    }
+  ],
+  "professor_feedback_summary": "허허, 자네들 과제 수정을 살펴봤는데 빛과 그림자가 아주 확실하구먼. 커밋 메시지는 내 말을 찰떡같이 알아듣고 아주 모범적으로 고쳐놨어! 그건 참 칭찬해 줄 만해. 하지만 브랜치 전략은 아직도 정신을 못 차리고 말로만 합의하면 다 된다고 우기고 있고, README 문서는 무슨 홍보 포스터 마냥 엉뚱한 소리나 적어놨지 말일세. 밑 빠진 독에 물 붓기 꼴이니까 정신 바짝 차리고 남은 부분들 마저 제대로 고치게나. 다들 공부하느라 고생 많으니 밥들 거르지 말고 든든하게 챙겨 먹어가면서 하세나!",
+  "unresolved_items": [
+    "main 브랜치 직접 push 관행 완전 폐지 및 feature 브랜치 분기 후 PR 워크플로 적용",
+    "README 파일에 사전 요구사항, 설치 명령어, 실행 가이드 상세 기술"
+  ]
+}

@@ -1,0 +1,15 @@
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+WORKSPACE_ROOT = Path(__file__).resolve().parents[2]
+if str(WORKSPACE_ROOT) not in sys.path:
+    sys.path.insert(0, str(WORKSPACE_ROOT))
+
+from pdf_pipeline import PDFSummarizerPipeline, PipelineResult
+
+
+async def summarize_pdf(pdf_bytes: bytes) -> PipelineResult:
+    pipeline = PDFSummarizerPipeline()
+    return await pipeline.process_pdf(pdf_bytes)

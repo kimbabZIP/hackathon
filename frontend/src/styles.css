@@ -2643,6 +2643,752 @@ button {
   background: rgba(77, 54, 31, 0.86);
 }
 
+.assignment-review-screen {
+  z-index: 8;
+  overflow: hidden;
+  background: #17150f;
+}
+
+.review-stage {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: max(100vw, calc(100vh * 1.40274));
+  height: max(100vh, calc(100vw / 1.40274));
+  overflow: hidden;
+  transform: translate(-50%, -50%);
+}
+
+.review-background-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.review-interaction-form {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+}
+
+.review-prompt-input {
+  position: absolute;
+  top: 27.8%;
+  left: 34.2%;
+  width: 31.6%;
+  height: 15.4%;
+  padding: 10px 12px;
+  resize: none;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  outline: none;
+  color: #332b21;
+  background: transparent;
+  font: clamp(12px, 1.25vw, 20px) "Noto Serif KR", serif;
+  line-height: 1.55;
+}
+
+.review-prompt-input:focus {
+  border-color: rgba(111, 77, 44, 0.55);
+  background: rgba(255, 250, 230, 0.18);
+  box-shadow: inset 0 0 15px rgba(103, 74, 45, 0.08);
+}
+
+.review-dropzone {
+  position: absolute;
+  top: 53.5%;
+  left: 34.2%;
+  width: 31.6%;
+  height: 21.8%;
+  border: 2px solid transparent;
+  border-radius: 9px;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 180ms ease, background-color 180ms ease;
+}
+
+.review-dropzone:hover,
+.review-dropzone:focus-visible,
+.review-dropzone.is-dragging {
+  border-color: rgba(124, 86, 49, 0.66);
+  background: rgba(149, 105, 60, 0.08);
+}
+
+.review-file-status {
+  position: absolute;
+  top: 7%;
+  right: 7%;
+  left: 7%;
+  display: none;
+  align-items: center;
+  min-height: 38%;
+  padding: 7px 58px 7px 44px;
+  overflow: hidden;
+  border: 1px solid rgba(119, 83, 48, 0.46);
+  border-radius: 6px;
+  color: #493727;
+  background: rgba(249, 239, 213, 0.92);
+  box-shadow: 0 4px 12px rgba(72, 45, 24, 0.16);
+  font-size: clamp(9px, 0.9vw, 13px);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.review-dropzone.has-file .review-file-status {
+  display: flex;
+  animation: file-card-in 260ms ease;
+}
+
+.review-file-status::before {
+  content: attr(data-file-type);
+  position: absolute;
+  left: 9px;
+  display: grid;
+  place-items: center;
+  width: 29px;
+  height: 34px;
+  border-radius: 3px;
+  color: #f8ecd2;
+  background: #765039;
+  font: 8px Georgia, serif;
+  box-shadow: inset 0 0 0 1px rgba(255, 235, 194, 0.24);
+}
+
+.review-file-status::after {
+  content: "첨부 완료";
+  position: absolute;
+  right: 10px;
+  color: #7a674e;
+  font-size: clamp(7px, 0.65vw, 10px);
+}
+
+.review-file-button {
+  position: absolute;
+  top: 67.2%;
+  z-index: 2;
+  height: 5.5%;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  cursor: pointer;
+  transition: border-color 180ms ease, background-color 180ms ease, box-shadow 180ms ease;
+}
+
+.review-file-button input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.review-pdf-button {
+  left: 36%;
+  width: 13.4%;
+}
+
+.review-text-button {
+  left: 50.8%;
+  width: 15.2%;
+}
+
+.review-file-button:hover,
+.review-file-button:focus-within {
+  border-color: rgba(104, 66, 35, 0.72);
+  background: rgba(118, 74, 36, 0.08);
+  box-shadow: 0 4px 10px rgba(64, 42, 23, 0.18);
+}
+
+.review-form-message {
+  position: absolute;
+  top: 77.2%;
+  left: 34.5%;
+  width: 31%;
+  margin: 0;
+  color: #6a392d;
+  font-size: clamp(9px, 0.9vw, 13px);
+  text-align: center;
+  text-shadow: 0 1px 1px rgba(255, 244, 214, 0.7);
+}
+
+.review-action-button {
+  position: absolute;
+  top: 87%;
+  z-index: 2;
+  height: 8.7%;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  transition: border-color 180ms ease, filter 180ms ease, box-shadow 180ms ease;
+}
+
+.review-start-button {
+  left: 32.5%;
+  width: 16.7%;
+}
+
+.review-exit-button {
+  left: 50.8%;
+  width: 16.7%;
+}
+
+.review-action-button:hover,
+.review-action-button:focus-visible {
+  outline: none;
+  border-color: rgba(244, 214, 155, 0.8);
+  box-shadow: 0 0 18px rgba(236, 185, 100, 0.28);
+  filter: brightness(1.1);
+}
+
+.review-result-screen {
+  z-index: 9;
+  overflow: hidden;
+  background: #10120f;
+}
+
+.review-result-stage {
+  position: absolute;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.review-result-background {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.review-result-character-wrap {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  left: 25%;
+  width: 52%;
+  height: 96%;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.review-result-professor {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center top;
+  mix-blend-mode: normal;
+  filter: drop-shadow(0 14px 13px rgba(0, 0, 0, 0.42));
+  opacity: 1;
+  transition: opacity 180ms ease;
+  animation: office-professor-in 600ms ease both;
+}
+
+.review-result-professor.is-processing {
+  opacity: 0;
+}
+
+.review-dialogue-mask {
+  position: absolute;
+  z-index: 3;
+  top: 61.8%;
+  left: 24.3%;
+  width: 54.4%;
+  height: 35%;
+  border: 2px solid rgba(129, 86, 53, 0.88);
+  border-radius: 7px;
+  background:
+    radial-gradient(circle at 45% 35%, rgba(76, 53, 37, 0.96), rgba(41, 29, 22, 0.98) 72%),
+    #2f2118;
+  box-shadow:
+    inset 0 0 35px rgba(8, 5, 3, 0.5),
+    inset 0 1px rgba(226, 185, 119, 0.08),
+    0 0 0 2px rgba(36, 24, 18, 0.72),
+    0 8px 20px rgba(0, 0, 0, 0.28);
+  pointer-events: none;
+}
+
+.review-result-professor-name {
+  position: absolute;
+  z-index: 5;
+  top: 61.1%;
+  left: 25%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14.5%;
+  height: 8.6%;
+  margin: 0;
+  overflow: hidden;
+  color: #eadabb;
+  background: linear-gradient(180deg, rgba(54, 38, 28, 0.98), rgba(36, 25, 19, 0.99));
+  box-shadow: inset 0 0 16px rgba(8, 5, 3, 0.55);
+  font-size: clamp(10px, 1.4vw, 21px);
+  letter-spacing: 0.04em;
+  text-align: center;
+  text-overflow: ellipsis;
+  text-shadow: 0 2px 4px #000;
+  white-space: nowrap;
+}
+
+.review-result-comment {
+  position: absolute;
+  z-index: 5;
+  top: 72.2%;
+  left: 26.4%;
+  width: 50%;
+  height: 21%;
+  margin: 0;
+  overflow: hidden;
+  color: #e5d7bc;
+  font-size: clamp(9px, 1.15vw, 17px);
+  line-height: 1.7;
+  letter-spacing: 0.02em;
+  text-shadow: 0 2px 4px #000;
+}
+
+.typewriter-cursor {
+  position: absolute;
+  z-index: 5;
+  top: 88%;
+  left: 75.5%;
+  width: 7px;
+  height: 13px;
+  background: #d7ad6c;
+  box-shadow: 0 0 8px rgba(220, 169, 91, 0.75);
+  animation: typewriter-blink 600ms steps(1) infinite;
+}
+
+.review-result-actions {
+  position: absolute;
+  z-index: 5;
+  inset: 0;
+  pointer-events: none;
+}
+
+.review-result-actions button {
+  position: absolute;
+  left: 80%;
+  width: 16.7%;
+  height: 10.2%;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: border-color 180ms ease, background-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+}
+
+.review-result-actions button:first-child {
+  top: 69.1%;
+}
+
+.review-result-actions button:last-child {
+  top: 81.3%;
+}
+
+.review-result-actions button:hover,
+.review-result-actions button:focus-visible {
+  outline: none;
+  border-color: rgba(239, 197, 125, 0.86);
+  background: rgba(219, 157, 70, 0.1);
+  box-shadow: 0 0 20px rgba(232, 177, 91, 0.32);
+  transform: translateX(-3px);
+}
+
+.review-result-back {
+  position: absolute;
+  z-index: 6;
+  top: 3%;
+  right: 2%;
+  padding: 8px 13px;
+  border: 1px solid rgba(210, 174, 113, 0.42);
+  color: #d4c09d;
+  background: rgba(18, 21, 17, 0.72);
+  cursor: pointer;
+  font-size: clamp(8px, 0.8vw, 12px);
+}
+
+.review-result-back:hover,
+.review-result-back:focus-visible {
+  outline: none;
+  border-color: #d7ad6c;
+  color: #f0dfbe;
+}
+
+@keyframes typewriter-blink {
+  0%,
+  48% {
+    opacity: 1;
+  }
+  49%,
+  100% {
+    opacity: 0;
+  }
+}
+
+.attached-file-chip {
+  position: relative;
+  display: none;
+  align-items: center;
+  min-height: 42px;
+  padding: 7px 58px 7px 44px;
+  overflow: hidden;
+  border: 1px solid rgba(119, 83, 48, 0.46);
+  border-radius: 6px;
+  color: #493727;
+  background: rgba(249, 239, 213, 0.92);
+  box-shadow: 0 4px 12px rgba(72, 45, 24, 0.16);
+  font-size: clamp(9px, 0.9vw, 13px);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.has-file .attached-file-chip {
+  display: flex;
+  animation: file-card-in 260ms ease;
+}
+
+.attached-file-chip::before {
+  content: attr(data-file-type);
+  position: absolute;
+  top: 50%;
+  left: 9px;
+  display: grid;
+  place-items: center;
+  width: auto;
+  min-width: 29px;
+  height: 34px;
+  padding: 0 4px;
+  border-radius: 3px;
+  color: #f8ecd2;
+  background: #765039;
+  font: 8px/1 Georgia, serif;
+  letter-spacing: 0.04em;
+  box-shadow: inset 0 0 0 1px rgba(255, 235, 194, 0.24);
+  transform: translateY(-50%);
+}
+
+.attached-file-chip::after {
+  content: "첨부 완료";
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  color: #7a674e;
+  font-size: clamp(7px, 0.65vw, 10px);
+  font-weight: 400;
+  transform: translateY(-50%);
+}
+
+@keyframes file-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(5px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.course-material-screen {
+  z-index: 8;
+  overflow: hidden;
+  background: #17150f;
+}
+
+.material-stage {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: max(100vw, calc(100vh * 1.40274));
+  height: max(100vh, calc(100vw / 1.40274));
+  overflow: hidden;
+  transform: translate(-50%, -50%);
+}
+
+.material-background-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.material-interaction-form {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+}
+
+.material-file-zone {
+  position: absolute;
+  z-index: 2;
+  top: 39.6%;
+  left: 37%;
+  width: 28.5%;
+  height: 7.9%;
+  overflow: visible;
+  border: 2px solid transparent;
+  border-radius: 9px;
+  outline: none;
+  cursor: pointer;
+  transition:
+    border-color 180ms ease,
+    background-color 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease;
+}
+
+.material-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.material-file-zone:hover,
+.material-file-zone:focus-visible,
+.material-file-zone:focus-within {
+  border-color: #ffe0a0;
+  background: rgba(255, 199, 95, 0.16);
+  box-shadow:
+    0 0 24px rgba(255, 190, 83, 0.55),
+    inset 0 0 18px rgba(255, 226, 164, 0.22);
+  transform: scale(1.018);
+}
+
+.material-file-zone.is-dragging {
+  border-color: rgba(124, 86, 49, 0.66);
+  background: rgba(149, 105, 60, 0.08);
+}
+
+.material-file-zone.has-file:hover,
+.material-file-zone.has-file:focus-visible,
+.material-file-zone.has-file:focus-within {
+  transform: none;
+}
+
+.material-file-status {
+  position: absolute;
+  right: -8%;
+  bottom: calc(100% + 8px);
+  left: -8%;
+  z-index: 3;
+  min-height: 38px;
+}
+
+.material-description-input {
+  position: absolute;
+  top: 59.3%;
+  left: 35.1%;
+  width: 32.3%;
+  height: 17.2%;
+  padding: 12px 14px;
+  resize: none;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  outline: none;
+  color: #332b21;
+  background: transparent;
+  font: clamp(12px, 1.2vw, 18px) "Noto Serif KR", serif;
+  line-height: 1.55;
+}
+
+.material-description-input:focus {
+  border-color: rgba(111, 77, 44, 0.55);
+  background: rgba(255, 250, 230, 0.18);
+  box-shadow: inset 0 0 15px rgba(103, 74, 45, 0.08);
+}
+
+.material-form-message {
+  position: absolute;
+  top: 79.2%;
+  left: 34.5%;
+  width: 33%;
+  margin: 0;
+  color: #6a392d;
+  font-size: clamp(9px, 0.9vw, 13px);
+  text-align: center;
+  text-shadow: 0 1px 1px rgba(255, 244, 214, 0.7);
+}
+
+.material-action-button {
+  position: absolute;
+  z-index: 2;
+  top: 88.4%;
+  height: 8.9%;
+  border: 2px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  cursor: pointer;
+  transition: border-color 180ms ease, filter 180ms ease, box-shadow 180ms ease;
+}
+
+.material-submit-button {
+  left: 33.2%;
+  width: 17.4%;
+}
+
+.material-cancel-button {
+  left: 52.1%;
+  width: 17.3%;
+}
+
+.material-action-button:hover,
+.material-action-button:focus-visible {
+  outline: none;
+  border-color: rgba(244, 214, 155, 0.8);
+  box-shadow: 0 0 18px rgba(236, 185, 100, 0.28);
+  filter: brightness(1.1);
+}
+
+.lecture-audio-screen {
+  z-index: 8;
+  overflow: hidden;
+  background: #17150f;
+}
+
+.audio-stage {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: max(100vw, calc(100vh * 1.40274));
+  height: max(100vh, calc(100vw / 1.40274));
+  overflow: hidden;
+  transform: translate(-50%, -50%);
+}
+
+.audio-background-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.audio-interaction-form {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+}
+
+.audio-file-zone {
+  position: absolute;
+  z-index: 2;
+  top: 20%;
+  left: 34%;
+  display: grid;
+  place-items: center;
+  width: 39.5%;
+  height: 65%;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  outline: none;
+  cursor: pointer;
+  transition:
+    border-color 180ms ease,
+    background-color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.audio-file-zone:hover,
+.audio-file-zone:focus-visible,
+.audio-file-zone:focus-within,
+.audio-file-zone.is-dragging {
+  border-color: rgba(139, 95, 57, 0.7);
+  background: rgba(136, 87, 47, 0.06);
+  box-shadow: inset 0 0 24px rgba(124, 76, 40, 0.12);
+}
+
+.audio-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.audio-file-status {
+  position: relative;
+  width: min(84%, 430px);
+  min-height: 52px;
+  padding: 12px 68px 12px 52px;
+  font-size: clamp(11px, 1.1vw, 16px);
+}
+
+.audio-file-status::before {
+  top: 50%;
+  height: 36px;
+  font-size: 9px;
+  transform: translateY(-50%);
+}
+
+.audio-file-status::after {
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: clamp(8px, 0.75vw, 11px);
+}
+
+.audio-form-message {
+  position: absolute;
+  z-index: 3;
+  top: 84.8%;
+  left: 34%;
+  width: 39.5%;
+  margin: 0;
+  color: #6d3b2f;
+  font-size: clamp(9px, 0.9vw, 13px);
+  text-align: center;
+  text-shadow: 0 1px 1px rgba(255, 244, 214, 0.8);
+}
+
+.audio-action-button {
+  position: absolute;
+  z-index: 3;
+  top: 89.8%;
+  height: 9.5%;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  transition: border-color 180ms ease, filter 180ms ease, box-shadow 180ms ease;
+}
+
+.audio-submit-button {
+  left: 34.5%;
+  width: 18%;
+}
+
+.audio-cancel-button {
+  left: 53.8%;
+  width: 18%;
+}
+
+.audio-action-button:hover,
+.audio-action-button:focus-visible {
+  outline: none;
+  border-color: rgba(245, 216, 157, 0.88);
+  box-shadow: 0 0 20px rgba(238, 183, 91, 0.36);
+  filter: brightness(1.12);
+}
+
 .feature-modal-backdrop {
   position: fixed;
   inset: 0;
@@ -3375,4 +4121,59 @@ button {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+.auth-submit:disabled,
+.select-professor-button:disabled,
+.review-action-button:disabled,
+.material-action-button:disabled,
+.audio-action-button:disabled,
+.chat-form button:disabled {
+  cursor: wait;
+  filter: grayscale(0.35);
+  opacity: 0.58;
+}
+
+.chat-status {
+  grid-column: 1 / -1;
+  min-height: 18px;
+  margin: 4px 0 0;
+  color: #a8a28f;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.chat-status.is-error {
+  color: #d79a8d;
+}
+
+.pipeline-result {
+  display: grid;
+  gap: 16px;
+}
+
+.pipeline-result h3 {
+  margin: 4px 0 0;
+  color: #d7b675;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.pipeline-result .result-meta {
+  margin: 0;
+  color: #9d927e;
+  font-size: 12px;
+}
+
+.pipeline-result pre {
+  max-height: min(40vh, 420px);
+  margin: 0;
+  padding: 16px;
+  overflow: auto;
+  border: 1px solid rgba(190, 153, 91, 0.28);
+  color: #e8dfcb;
+  background: rgba(5, 6, 5, 0.55);
+  font: 12px/1.75 "Noto Serif KR", serif;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
