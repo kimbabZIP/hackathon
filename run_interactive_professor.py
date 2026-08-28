@@ -108,6 +108,7 @@ async def run_chat_loop(persona_path: str) -> None:
     print("   기능명세 2.8절의 루브릭 지표로 즉시 자동 첨삭합니다! (종료: 'exit')\n")
 
     total_accumulated_tokens = 0
+    last_suggested_qs = []
 
     while True:
         try:
@@ -118,6 +119,14 @@ async def run_chat_loop(persona_path: str) -> None:
                 print(f"\n[{profile.professor_name} 교수]: 허허, 그래. 오늘 하루도 고생 많았고 밥 든든하게 챙겨 먹게나!")
                 break
 
+            # 1번, 2번 숫자 입력 시 추천 질문 자동 치환
+            if user_input == "1" and len(last_suggested_qs) >= 1:
+                user_input = last_suggested_qs[0]
+                print(f"👉 [선택된 추천 질문 1]: {user_input}")
+            elif user_input == "2" and len(last_suggested_qs) >= 2:
+                user_input = last_suggested_qs[1]
+                print(f"👉 [선택된 추천 질문 2]: {user_input}")
+
             response = await agent.interact_async(
                 student_message=user_input,
             )
@@ -126,6 +135,8 @@ async def run_chat_loop(persona_path: str) -> None:
             used_tokens = tokens.get("total_tokens", 0)
             total_accumulated_tokens += used_tokens
             trace = response.get("execution_trace", {})
+            suggested_qs = response.get("suggested_questions", [])
+            last_suggested_qs = suggested_qs
 
             # ── 실시간 텔레메트리 (Execution Trace) 출력 ────────────────────
             pipe_name = trace.get("pipeline_name", "Multi-Agent Dual-Stage Pipeline")
@@ -168,6 +179,15 @@ async def run_chat_loop(persona_path: str) -> None:
 
                 print(f"\n🎓 [교수님 총평]:\n{response.get('summary', '')}")
                 print(f"\n  🏷️ [토큰 현황] 이번 발화: {used_tokens:,} tokens | 세션 누적: {total_accumulated_tokens:,} tokens (무료 티어: 일일 100만 토큰 한도)")
+
+            # ── 프론트엔드 연동용 추천 질문 2개 UI 출력 ─────────────────────
+            if suggested_qs:
+                print("\n" + "─" * 70)
+                print("💡 [프론트엔드 연동 추천 후속 질문 (Quick Buttons)]")
+                for i, q in enumerate(suggested_qs, 1):
+                    print(f"  {i}. {q}")
+                print("  3. [직접 입력] 원하는 질문이나 메시지를 입력하세요.")
+                print("─" * 70)
 
         except (KeyboardInterrupt, EOFError):
             print("\n대화를 종료합니다.")
