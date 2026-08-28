@@ -5,7 +5,9 @@ const introScreen = document.querySelector(".intro-screen");
 const professorSelectScreen = document.querySelector(".professor-select-screen");
 const professorOfficeScreen = document.querySelector(".professor-office-screen");
 const assignmentReviewScreen = document.querySelector(".assignment-review-screen");
+const previousAssignmentsScreen = document.querySelector(".previous-assignments-screen");
 const reviewResultScreen = document.querySelector(".review-result-screen");
+const reviewReportScreen = document.querySelector(".review-report-screen");
 const courseMaterialScreen = document.querySelector(".course-material-screen");
 const lectureAudioScreen = document.querySelector(".lecture-audio-screen");
 const chatbotScreen = document.querySelector(".chatbot-screen");
@@ -455,7 +457,9 @@ function showAuth() {
   professorSelectScreen.hidden = true;
   professorOfficeScreen.hidden = true;
   assignmentReviewScreen.hidden = true;
+  previousAssignmentsScreen.hidden = true;
   reviewResultScreen.hidden = true;
+  reviewReportScreen.hidden = true;
   courseMaterialScreen.hidden = true;
   lectureAudioScreen.hidden = true;
   chatbotScreen.hidden = true;
@@ -702,7 +706,9 @@ function showProfessorOffice() {
   professorSelectScreen.hidden = true;
   featureModalBackdrop.hidden = true;
   assignmentReviewScreen.hidden = true;
+  previousAssignmentsScreen.hidden = true;
   reviewResultScreen.hidden = true;
+  reviewReportScreen.hidden = true;
   courseMaterialScreen.hidden = true;
   lectureAudioScreen.hidden = true;
   chatbotScreen.hidden = true;
@@ -713,7 +719,9 @@ function showProfessorOffice() {
 function backToProfessors() {
   featureModalBackdrop.hidden = true;
   assignmentReviewScreen.hidden = true;
+  previousAssignmentsScreen.hidden = true;
   reviewResultScreen.hidden = true;
+  reviewReportScreen.hidden = true;
   courseMaterialScreen.hidden = true;
   lectureAudioScreen.hidden = true;
   chatbotScreen.hidden = true;
@@ -761,13 +769,16 @@ function confirmSelection() {
 function showAssignmentReview() {
   featureModalBackdrop.hidden = true;
   professorOfficeScreen.hidden = true;
+  previousAssignmentsScreen.hidden = true;
   assignmentReviewScreen.hidden = false;
   document.querySelector(".review-prompt-input").focus({ preventScroll: true });
 }
 
 function closeAssignmentReview() {
   assignmentReviewScreen.hidden = true;
+  previousAssignmentsScreen.hidden = true;
   reviewResultScreen.hidden = true;
+  reviewReportScreen.hidden = true;
   professorOfficeScreen.hidden = false;
   document.querySelector("[data-feature='review']").focus({ preventScroll: true });
 }
@@ -819,6 +830,8 @@ function showReviewResult(prompt, fileName) {
 
   lastReviewComment = createMockReviewComment(profile, prompt, fileName);
   assignmentReviewScreen.hidden = true;
+  previousAssignmentsScreen.hidden = true;
+  reviewReportScreen.hidden = true;
   reviewResultScreen.hidden = false;
   requestAnimationFrame(() => {
     typeReviewComment(lastReviewComment);
@@ -829,6 +842,8 @@ function showReviewResult(prompt, fileName) {
 function backToReviewForm() {
   window.clearTimeout(typewriterTimer);
   reviewResultScreen.hidden = true;
+  reviewReportScreen.hidden = true;
+  previousAssignmentsScreen.hidden = true;
   featureModalBackdrop.hidden = true;
   assignmentReviewScreen.hidden = false;
   document.querySelector(".review-prompt-input").focus({ preventScroll: true });
@@ -837,36 +852,24 @@ function backToReviewForm() {
 function openReviewReport() {
   const profile = professorProfiles.find((item) => item.id === selectedProfessorId);
   const request = JSON.parse(sessionStorage.getItem("assignment-review-request") ?? "{}");
-  const title = document.querySelector("#feature-modal-title");
-  const content = document.querySelector(".feature-modal-content");
-  title.textContent = "과제 첨삭 보고서";
-  content.innerHTML = `
-    <article class="review-report">
-      <div class="report-meta">
-        <span>담당 교수</span><strong class="report-professor"></strong>
-        <span>과제 파일</span><strong class="report-file"></strong>
-      </div>
-      <section>
-        <h3>종합 의견</h3>
-        <p class="report-comment"></p>
-      </section>
-      <section>
-        <h3>우선 수정 항목</h3>
-        <ol>
-          <li>각 문단의 핵심 주장을 첫 문장에 명확히 제시할 것</li>
-          <li>주장 직후 신뢰할 수 있는 출처와 구체적 사례를 배치할 것</li>
-          <li>결론에서 본론의 근거를 빠짐없이 회수할 것</li>
-        </ol>
-      </section>
-      <button class="report-download-button" type="button">텍스트 보고서 저장</button>
-    </article>
-  `;
-  content.querySelector(".report-professor").textContent = profile.name;
-  content.querySelector(".report-file").textContent = request.fileName ?? reviewFile?.name ?? "과제 파일";
-  content.querySelector(".report-comment").textContent = lastReviewComment;
-  content.querySelector(".report-download-button").addEventListener("click", downloadReviewReport);
-  featureModalBackdrop.hidden = false;
-  content.querySelector(".report-download-button").focus({ preventScroll: true });
+  const requestedAt = request.requestedAt ? new Date(request.requestedAt) : new Date();
+  const documentElement = document.querySelector(".review-report-document");
+  document.querySelector(".report-document-professor").textContent = profile.name;
+  document.querySelector(".report-document-file").textContent =
+    request.fileName ?? reviewFile?.name ?? "과제 파일";
+  document.querySelector(".report-document-date").textContent =
+    requestedAt.toLocaleString("ko-KR", { dateStyle: "medium", timeStyle: "short" });
+  document.querySelector(".report-document-comment").textContent = lastReviewComment;
+  documentElement.scrollTop = 0;
+  reviewResultScreen.hidden = true;
+  reviewReportScreen.hidden = false;
+  documentElement.focus({ preventScroll: true });
+}
+
+function closeReviewReport() {
+  reviewReportScreen.hidden = true;
+  reviewResultScreen.hidden = false;
+  document.querySelector("[data-action='open-review-report']").focus({ preventScroll: true });
 }
 
 function downloadReviewReport() {
@@ -908,53 +911,52 @@ function saveReviewHistory(request) {
 
 function openPreviousAssignments() {
   const account = getSession()?.account ?? "guest";
-  const history = readReviewHistory().filter((item) =>
-    item.account === account && item.professorId === selectedProfessorId);
-  const title = document.querySelector("#feature-modal-title");
-  const content = document.querySelector(".feature-modal-content");
-  title.textContent = "이전 과제";
-  content.replaceChildren();
+  const history = readReviewHistory()
+    .filter((item) => item.account === account && item.professorId === selectedProfessorId)
+    .slice(0, 4);
+  const slots = [...document.querySelectorAll(".previous-assignment-slots button")];
 
-  if (!history.length) {
-    const emptyMessage = document.createElement("p");
-    emptyMessage.className = "previous-assignment-empty";
-    emptyMessage.textContent = "이 교수에게 제출한 이전 과제가 없습니다.";
-    content.append(emptyMessage);
-  } else {
-    const list = document.createElement("div");
-    list.className = "previous-assignment-list";
-    history.forEach((item) => {
-      const button = document.createElement("button");
-      const header = document.createElement("span");
-      const fileName = document.createElement("strong");
-      const date = document.createElement("time");
-      const prompt = document.createElement("span");
+  slots.forEach((button, index) => {
+    const item = history[index];
+    button.replaceChildren();
+    button.onclick = null;
+    button.disabled = !item;
+    button.removeAttribute("aria-label");
+    if (!item) {
+      return;
+    }
 
-      button.className = "previous-assignment-item";
-      button.type = "button";
-      header.className = "previous-assignment-header";
-      fileName.textContent = item.fileName;
-      date.dateTime = item.requestedAt;
-      date.textContent = new Date(item.requestedAt).toLocaleString("ko-KR", {
-        dateStyle: "medium",
-        timeStyle: "short",
-      });
-      prompt.className = "previous-assignment-prompt";
-      prompt.textContent = item.prompt;
-      header.append(fileName, date);
-      button.append(header, prompt);
-      button.addEventListener("click", () => {
-        sessionStorage.setItem("assignment-review-request", JSON.stringify(item));
-        featureModalBackdrop.hidden = true;
-        showReviewResult(item.prompt, item.fileName);
-      });
-      list.append(button);
+    const fileName = document.createElement("strong");
+    const date = document.createElement("time");
+    fileName.className = "previous-slot-file";
+    fileName.textContent = item.fileName;
+    date.className = "previous-slot-date";
+    date.dateTime = item.requestedAt;
+    date.textContent = new Date(item.requestedAt).toLocaleDateString("ko-KR", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
     });
-    content.append(list);
-  }
+    button.append(fileName, date);
+    button.setAttribute("aria-label", `${item.fileName} 첨삭 결과 보기`);
+    button.onclick = () => {
+      sessionStorage.setItem("assignment-review-request", JSON.stringify(item));
+      previousAssignmentsScreen.hidden = true;
+      showReviewResult(item.prompt, item.fileName);
+    };
+  });
 
-  featureModalBackdrop.hidden = false;
-  content.querySelector("button")?.focus({ preventScroll: true });
+  assignmentReviewScreen.hidden = true;
+  previousAssignmentsScreen.hidden = false;
+  (slots.find((button) => !button.disabled)
+    ?? document.querySelector(".previous-assignments-close"))
+    .focus({ preventScroll: true });
+}
+
+function closePreviousAssignments() {
+  previousAssignmentsScreen.hidden = true;
+  assignmentReviewScreen.hidden = false;
+  document.querySelector("[data-action='open-previous-assignments']").focus({ preventScroll: true });
 }
 
 function openReviewQuestion() {
@@ -1141,6 +1143,7 @@ function showChatbot(context = "general") {
   featureModalBackdrop.hidden = true;
   professorOfficeScreen.hidden = true;
   reviewResultScreen.hidden = true;
+  reviewReportScreen.hidden = true;
   chatbotScreen.hidden = false;
   renderChatbotHistory(true);
   document.querySelector("[data-chat-suggestion='0']").focus({ preventScroll: true });
@@ -1224,7 +1227,9 @@ function showTitle() {
   professorSelectScreen.hidden = true;
   professorOfficeScreen.hidden = true;
   assignmentReviewScreen.hidden = true;
+  previousAssignmentsScreen.hidden = true;
   reviewResultScreen.hidden = true;
+  reviewReportScreen.hidden = true;
   courseMaterialScreen.hidden = true;
   lectureAudioScreen.hidden = true;
   chatbotScreen.hidden = true;
@@ -1282,7 +1287,9 @@ function exitGame() {
   professorSelectScreen.hidden = true;
   professorOfficeScreen.hidden = true;
   assignmentReviewScreen.hidden = true;
+  previousAssignmentsScreen.hidden = true;
   reviewResultScreen.hidden = true;
+  reviewReportScreen.hidden = true;
   courseMaterialScreen.hidden = true;
   lectureAudioScreen.hidden = true;
   chatbotScreen.hidden = true;
@@ -1315,8 +1322,11 @@ function handleAction(action) {
     "close-review": closeAssignmentReview,
     "back-to-review-form": backToReviewForm,
     "open-review-report": openReviewReport,
+    "close-review-report": closeReviewReport,
+    "download-review-report": downloadReviewReport,
     "open-review-question": openReviewQuestion,
     "open-previous-assignments": openPreviousAssignments,
+    "close-previous-assignments": closePreviousAssignments,
     "close-material": closeCourseMaterial,
     "close-audio": closeLectureAudio,
     "open-chatbot-input": openChatbotInput,
@@ -1683,10 +1693,26 @@ document.addEventListener("keydown", (event) => {
     return;
   }
 
+  if (!previousAssignmentsScreen.hidden) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closePreviousAssignments();
+    }
+    return;
+  }
+
   if (!reviewResultScreen.hidden) {
     if (event.key === "Escape") {
       event.preventDefault();
       backToReviewForm();
+    }
+    return;
+  }
+
+  if (!reviewReportScreen.hidden) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeReviewReport();
     }
     return;
   }
