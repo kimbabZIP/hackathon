@@ -1,9 +1,9 @@
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 
 const API_SERVER_ORIGIN = "http://3.122.56.68:8010";
 
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, __dirname, "");
+  const env = loadEnv(mode, process.cwd(), "");
   const apiTarget =
     process.env.SCHOLARLY_API_TARGET?.trim() ||
     env.SCHOLARLY_API_TARGET?.trim() ||
