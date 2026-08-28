@@ -237,7 +237,7 @@
                     <input
                       name="professorAge"
                       type="number"
-                      min="25"
+                      min="1"
                       max="100"
                       inputmode="numeric"
                       placeholder="나이"
@@ -296,11 +296,25 @@
             </dl>
           </aside>
 
+          <p class="office-ai-requirement" id="office-ai-requirement" role="status" aria-live="polite">
+            강의 자료 또는 강의 음성을 등록하면 AI 기능이 활성화됩니다.
+          </p>
+
           <nav class="office-feature-menu" aria-label="주요 기능">
-            <button type="button" data-feature="chat">
+            <button
+              type="button"
+              data-feature="chat"
+              aria-describedby="office-ai-requirement"
+              disabled
+            >
               <span class="sr-only">챗봇 기능</span>
             </button>
-            <button type="button" data-feature="review">
+            <button
+              type="button"
+              data-feature="review"
+              aria-describedby="office-ai-requirement"
+              disabled
+            >
               <span class="sr-only">과제 첨삭</span>
             </button>
             <button type="button" data-feature="material">
@@ -321,7 +335,7 @@
         <div class="review-stage">
           <img
             class="review-background-image"
-            src="/assignment-review-bg-v2.jpg"
+            src="/assignment-review-bg-v3.jpg"
             alt=""
             aria-hidden="true"
           />
@@ -352,6 +366,13 @@
             </label>
 
             <p class="review-form-message" role="status" aria-live="polite"></p>
+            <button
+              class="review-action-button review-previous-button"
+              type="button"
+              data-action="open-previous-assignments"
+            >
+              <span class="sr-only">이전 과제 보기</span>
+            </button>
             <button class="review-action-button review-start-button" type="submit">
               <span class="sr-only">첨삭 시작</span>
             </button>
@@ -363,6 +384,30 @@
               <span class="sr-only">과제 첨삭 종료</span>
             </button>
           </form>
+        </div>
+      </section>
+
+      <section class="previous-assignments-screen" aria-label="이전 과제 목록" hidden>
+        <div class="previous-assignments-stage">
+          <img
+            class="previous-assignments-background"
+            src="/previous-assignments-bg.jpg"
+            alt=""
+            aria-hidden="true"
+          />
+          <div class="previous-assignment-slots" aria-label="최근 제출 과제">
+            <button type="button" disabled></button>
+            <button type="button" disabled></button>
+            <button type="button" disabled></button>
+            <button type="button" disabled></button>
+          </div>
+          <button
+            class="previous-assignments-close"
+            type="button"
+            data-action="close-previous-assignments"
+          >
+            <span class="sr-only">이전 과제 목록 닫기</span>
+          </button>
         </div>
       </section>
 
@@ -397,6 +442,80 @@
             data-action="back-to-review-form"
           >
             ← 첨삭 입력으로
+          </button>
+        </div>
+      </section>
+
+      <section class="review-report-screen" aria-label="과제 첨삭 보고서" hidden>
+        <div class="review-report-stage">
+          <img
+            class="review-report-background"
+            src="/review-report-bg.jpg"
+            alt=""
+            aria-hidden="true"
+          />
+
+          <article class="review-report-document" tabindex="0">
+            <h1 class="sr-only">과제 첨삭 보고서</h1>
+            <dl class="report-document-meta">
+              <div>
+                <dt>담당 교수</dt>
+                <dd class="report-document-professor"></dd>
+              </div>
+              <div>
+                <dt>과제 파일</dt>
+                <dd class="report-document-file"></dd>
+              </div>
+              <div>
+                <dt>첨삭 일시</dt>
+                <dd class="report-document-date"></dd>
+              </div>
+            </dl>
+
+            <section>
+              <h2>종합 의견</h2>
+              <p class="report-document-comment"></p>
+            </section>
+
+            <section>
+              <h2>항목별 평가</h2>
+              <div class="report-score-chart" aria-label="첨삭 항목별 점수">
+                <div><span>논리 구조</span><i><b style="--score: 72%"></b></i><strong>72</strong></div>
+                <div><span>근거 활용</span><i><b style="--score: 64%"></b></i><strong>64</strong></div>
+                <div><span>문장 표현</span><i><b style="--score: 81%"></b></i><strong>81</strong></div>
+                <div><span>형식 완성도</span><i><b style="--score: 76%"></b></i><strong>76</strong></div>
+              </div>
+            </section>
+
+            <section>
+              <h2>우선 수정 항목</h2>
+              <ol>
+                <li>각 문단의 핵심 주장을 첫 문장에 명확히 제시할 것</li>
+                <li>주장 직후 신뢰할 수 있는 출처와 구체적 사례를 배치할 것</li>
+                <li>결론에서 본론의 핵심 근거를 빠짐없이 회수할 것</li>
+              </ol>
+            </section>
+
+            <section>
+              <h2>세부 첨삭 방향</h2>
+              <p>
+                서론에서는 문제의 범위와 핵심 용어를 먼저 정의하고, 본론에서는 하나의 문단에
+                하나의 주장만 배치하세요. 인용한 자료는 출처와 작성 시점을 함께 표시하고,
+                사례가 주장에 어떤 의미를 갖는지 직접 설명해야 합니다.
+              </p>
+            </section>
+
+            <button class="report-document-download" type="button" data-action="download-review-report">
+              텍스트 보고서 저장
+            </button>
+          </article>
+
+          <button
+            class="review-report-close"
+            type="button"
+            data-action="close-review-report"
+          >
+            <span class="sr-only">첨삭 보고서 닫기</span>
           </button>
         </div>
       </section>
@@ -483,6 +602,61 @@
               <span class="sr-only">강의 음성 등록 취소</span>
             </button>
           </form>
+        </div>
+      </section>
+
+      <section class="chatbot-screen" aria-label="교수 챗봇" hidden>
+        <div class="chatbot-stage">
+          <img
+            class="chatbot-background-image"
+            src="/chatbot-bg.jpg"
+            alt=""
+            aria-hidden="true"
+          />
+          <img class="chatbot-professor-image" alt="" />
+
+          <nav class="chatbot-suggestions" aria-label="추천 질문">
+            <button type="button" data-chat-suggestion="0">
+              <span class="chatbot-suggestion-text"></span>
+            </button>
+            <button type="button" data-chat-suggestion="1">
+              <span class="chatbot-suggestion-text"></span>
+            </button>
+            <button class="chatbot-direct-button" type="button" data-action="open-chatbot-input">
+              <span class="sr-only">질문 직접 입력하기</span>
+            </button>
+          </nav>
+
+          <form class="chatbot-direct-form" id="chatbot-direct-form" hidden>
+            <label class="sr-only" for="chatbot-direct-input">교수에게 직접 질문</label>
+            <input
+              id="chatbot-direct-input"
+              name="chatbotQuestion"
+              type="text"
+              maxlength="300"
+              placeholder="질문을 입력하고 Enter를 누르세요"
+              autocomplete="off"
+              required
+            />
+            <button type="submit">전송</button>
+          </form>
+
+          <p class="chatbot-professor-name"></p>
+          <p class="chatbot-answer" aria-live="polite"></p>
+          <span class="chatbot-typewriter-cursor" aria-hidden="true"></span>
+
+          <nav class="chatbot-history-controls" aria-label="대화 기록 이동">
+            <button type="button" data-action="chatbot-back" disabled>
+              <span class="sr-only">이전 대화</span>
+            </button>
+            <button type="button" data-action="chatbot-forward" disabled>
+              <span class="sr-only">다음 대화</span>
+            </button>
+          </nav>
+
+          <button class="chatbot-office-button" type="button" data-action="close-chatbot">
+            ← 교수 연구실로
+          </button>
         </div>
       </section>
 
