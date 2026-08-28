@@ -2429,6 +2429,12 @@ button {
   pointer-events: none;
 }
 
+.chatbot-suggestions[hidden],
+.chatbot-direct-form[hidden],
+.chatbot-continue-hint[hidden] {
+  display: none;
+}
+
 .chatbot-suggestions button {
   position: absolute;
   left: 4.1%;
@@ -2476,10 +2482,6 @@ button {
   white-space: nowrap;
 }
 
-.chatbot-suggestions.is-direct-entry .chatbot-direct-button {
-  visibility: hidden;
-}
-
 .chatbot-direct-form {
   position: absolute;
   z-index: 5;
@@ -2525,6 +2527,13 @@ button {
   background: rgba(139, 91, 43, 0.98);
 }
 
+.chatbot-suggestions button:disabled,
+.chatbot-direct-form input:disabled,
+.chatbot-direct-form button:disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
+
 .chatbot-professor-name {
   position: absolute;
   z-index: 4;
@@ -2554,13 +2563,28 @@ button {
   width: 93.7%;
   height: 18.2%;
   margin: 0;
+  padding: 0;
   overflow: hidden;
+  border: 0;
+  outline: none;
   color: #e9dbc0;
+  background: transparent;
+  cursor: default;
+  font-family: inherit;
   font-size: clamp(13px, 1.5vw, 22px);
   line-height: 1.65;
   letter-spacing: 0.015em;
+  text-align: left;
   text-shadow: 0 2px 4px #000;
   white-space: pre-wrap;
+}
+
+.chatbot-answer.has-next {
+  cursor: pointer;
+}
+
+.chatbot-answer.has-next:focus-visible {
+  box-shadow: inset 0 0 0 1px rgba(231, 196, 132, 0.42);
 }
 
 .chatbot-typewriter-cursor {
@@ -2577,6 +2601,19 @@ button {
 
 .chatbot-typewriter-cursor.is-idle {
   display: none;
+}
+
+.chatbot-continue-hint {
+  position: absolute;
+  z-index: 5;
+  right: 3.2%;
+  bottom: 4.6%;
+  color: #e3bd79;
+  font-size: clamp(9px, 0.85vw, 13px);
+  letter-spacing: 0.04em;
+  pointer-events: none;
+  text-shadow: 0 2px 4px #000;
+  animation: typewriter-blink 900ms steps(1) infinite;
 }
 
 .chatbot-history-controls {

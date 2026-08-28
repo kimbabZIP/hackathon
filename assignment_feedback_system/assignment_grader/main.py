@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -25,6 +27,21 @@ app = FastAPI(
     description="과제 첨삭, 강의자료 PDF 요약·저장, 강의 음성 STT·요약, 교수 페르소나 대화를 제공하는 통합 FastAPI 서버",
     version="1.0.0",
 )
+
+configured_cors_origins = [
+    origin.strip().rstrip("/")
+    for origin in os.getenv("SCHOLARLY_CORS_ORIGINS", "").split(",")
+    if origin.strip()
+]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=configured_cors_origins,
+    allow_origin_regex=r"^https?://(?:localhost|127\.0\.0\.1)(?::\d+)?$",
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 app.include_router(system.router, prefix="/api")
 app.include_router(auth.router, prefix="/api")
