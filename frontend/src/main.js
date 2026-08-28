@@ -1,4 +1,12 @@
-const authScreen = document.querySelector(".auth-screen");
+import {
+  analyzeLectureAudio,
+  getLectureMaterials,
+  gradeAssignment,
+  ScholarlyApiError,
+  sendProfessorChat,
+  uploadLectureMaterial,
+} from "./api.js";
+
 const titleScreen = document.querySelector(".title-screen");
 const titleImage = document.querySelector(".title-image");
 const introScreen = document.querySelector(".intro-screen");
@@ -10,11 +18,6 @@ const selectionToast = document.querySelector(".selection-toast");
 const featureModalBackdrop = document.querySelector(".feature-modal-backdrop");
 const closedScreen = document.querySelector(".closed-screen");
 const menuButtons = [...document.querySelectorAll(".menu-hitbox")];
-const authTabs = [...document.querySelectorAll(".auth-tab")];
-const authForms = {
-  login: document.querySelector("#login-form"),
-  signup: document.querySelector("#signup-form"),
-};
 
 let selectedMenuIndex = 0;
 let selectedProfessorId = "yoon";
@@ -23,9 +26,11 @@ let professorHoverTimer;
 let toastTimer;
 let heroRequestId = 0;
 let pendingProfessorCustomization = null;
+let featureRequestController = null;
+const professorChatHistories = new Map();
+const professorLectureMaterials = new Map();
+const professorPersonaProfiles = new Map();
 const mainScreenUrl = "/main-screen.jpg";
-const accountStorageKey = "assignment-review-accounts";
-const sessionStorageKey = "assignment-review-session";
 const professorCustomizationStorageKey = "assignment-review-professor-customizations";
 const professorAssetModules = import.meta.glob(
   "/assets/professors/*.{png,jpg,jpeg,webp,avif,PNG,JPG,JPEG,WEBP,AVIF}",
@@ -309,99 +314,6 @@ function saveProfessorCustomization(profile) {
   localStorage.setItem(professorCustomizationStorageKey, JSON.stringify(customizations));
 }
 
-function readAccounts() {
-  try {
-    return JSON.parse(localStorage.getItem(accountStorageKey)) ?? [];
-  } catch {
-    return [];
-  }
-}
-
-function saveAccounts(accounts) {
-  localStorage.setItem(accountStorageKey, JSON.stringify(accounts));
-}
-
-async function hashPassword(password) {
-  const bytes = new TextEncoder().encode(password);
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
-  return [...new Uint8Array(digest)]
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
-}
-
-function setAuthMessage(form, message, success = false) {
-  const messageElement = form.querySelector(".auth-message");
-  messageElement.textContent = message;
-  messageElement.classList.toggle("is-success", success);
-}
-
-function showAuthView(view) {
-  const isLogin = view === "login";
-
-  authForms.login.hidden = !isLogin;
-  authForms.signup.hidden = isLogin;
-  authTabs.forEach((tab) => {
-    const active = tab.id === `${view}-tab`;
-    tab.classList.toggle("is-active", active);
-    tab.setAttribute("aria-selected", String(active));
-    tab.tabIndex = active ? 0 : -1;
-  });
-
-  Object.values(authForms).forEach((form) => setAuthMessage(form, ""));
-  requestAnimationFrame(() => {
-    document.querySelector(`#${view}-form input`)?.focus({ preventScroll: true });
-  });
-}
-
-function showAuth() {
-  window.clearTimeout(transitionTimer);
-  titleScreen.hidden = true;
-  introScreen.hidden = true;
-  professorSelectScreen.hidden = true;
-  professorOfficeScreen.hidden = true;
-  closedScreen.hidden = true;
-  modalBackdrop.hidden = true;
-  selectionModalBackdrop.hidden = true;
-  featureModalBackdrop.hidden = true;
-  selectionToast.hidden = true;
-  authScreen.hidden = false;
-  authScreen.classList.remove("is-leaving");
-  showAuthView("login");
-}
-
-function setSession(account) {
-  sessionStorage.setItem(sessionStorageKey, JSON.stringify({
-    account: account.account,
-    name: account.name,
-  }));
-}
-
-function getSession() {
-  try {
-    return JSON.parse(sessionStorage.getItem(sessionStorageKey));
-  } catch {
-    return null;
-  }
-}
-
-function updatePlayerName() {
-  const session = getSession();
-  document.querySelector(".player-name").textContent = session
-    ? `${session.name} 학생`
-    : "";
-}
-
-function enterTitle(account) {
-  setSession(account);
-  updatePlayerName();
-  authScreen.classList.add("is-leaving");
-  transitionTimer = window.setTimeout(() => {
-    authScreen.hidden = true;
-    showTitle();
-    menuButtons[0].focus({ preventScroll: true });
-  }, 650);
-}
-
 function setSelectedMenu(index, focus = false) {
   selectedMenuIndex = (index + menuButtons.length) % menuButtons.length;
 
@@ -606,6 +518,8 @@ function showProfessorOffice() {
 }
 
 function backToProfessors() {
+  featureRequestController?.abort();
+  featureRequestController = null;
   featureModalBackdrop.hidden = true;
   professorOfficeScreen.hidden = true;
   professorSelectScreen.hidden = false;
@@ -648,71 +562,225 @@ function confirmSelection() {
   showProfessorOffice();
 }
 
-const uploadFeatureSettings = {
-  review: {
-    title: "과제 첨삭",
-    guide: "첨삭받을 과제 파일을 선택해 주세요.",
-    accept: ".pdf,.doc,.docx,.hwp,.txt",
-    button: "첨삭 요청하기",
-  },
-  material: {
-    title: "강의 자료 업로드",
-    guide: "교수의 참고 자료로 사용할 강의 자료를 등록해 주세요.",
-    accept: ".pdf,.ppt,.pptx,.doc,.docx,.hwp,.txt",
-    button: "강의 자료 등록하기",
-  },
-  audio: {
-    title: "강의 음성 업로드",
-    guide: "녹음된 강의 음성 파일을 등록해 주세요.",
-    accept: "audio/*",
-    button: "강의 음성 등록하기",
-  },
-};
+function selectedProfessor() {
+  return professorProfiles.find((item) => item.id === selectedProfessorId);
+}
+
+function currentProfessorPersona(profile) {
+  const extracted = professorPersonaProfiles.get(profile.id);
+  const dna = extracted?.dna;
+  return {
+    professor_name: profile.name,
+    department: profile.department,
+    subject: profile.specialty,
+    summary_bio: extracted?.summary_bio || `${profile.type} 성향으로 ${profile.specialty}`,
+    tone_description: dna?.tone_description || `${profile.type} 특성이 드러나는 전문적인 지도 어조`,
+    sentence_endings: dna?.sentence_endings || [],
+    filler_words: dna?.filler_words || [],
+  };
+}
+
+function beginFeatureRequest() {
+  featureRequestController?.abort();
+  featureRequestController = new AbortController();
+  return featureRequestController;
+}
+
+function apiErrorText(error, fallback) {
+  if (error instanceof DOMException && error.name === "AbortError") return "요청이 취소되었습니다.";
+  if (error instanceof ScholarlyApiError || error instanceof Error) return error.message;
+  return fallback;
+}
+
+function appendChatMessage(chatLog, role, content, meta = "") {
+  const message = document.createElement("div");
+  message.className = `chat-message ${role === "student" ? "user-message" : "professor-message"}`;
+  const body = document.createElement("p");
+  body.textContent = content;
+  message.append(body);
+  if (meta) {
+    const metadata = document.createElement("small");
+    metadata.textContent = meta;
+    message.append(metadata);
+  }
+  chatLog.append(message);
+  chatLog.scrollTop = chatLog.scrollHeight;
+}
+
+function renderChatHistory(chatLog, profile) {
+  const history = professorChatHistories.get(profile.id) || [];
+  if (!history.length) {
+    appendChatMessage(chatLog, "professor", `${profile.name}입니다. 과제나 강의 내용에 관해 질문하세요.`);
+    return;
+  }
+  history.forEach((item) => appendChatMessage(chatLog, item.role, item.content, item.meta));
+}
+
+function renderStringList(container, items, emptyMessage = "해당 항목이 없습니다.") {
+  container.replaceChildren();
+  const values = Array.isArray(items) && items.length ? items : [emptyMessage];
+  values.forEach((value) => {
+    const item = document.createElement("li");
+    item.textContent = value;
+    container.append(item);
+  });
+}
+
+function renderFeedbackReport(container, report) {
+  container.className = "feature-result result-panel";
+  container.innerHTML = `
+    <article class="feedback-report">
+      <header class="feedback-score-row">
+        <div><span>총점</span><strong class="feedback-score"></strong></div>
+        <div><span>등급</span><strong class="feedback-grade"></strong></div>
+        <p class="feedback-engine"></p>
+      </header>
+      <p class="feedback-summary"></p>
+      <section><h3>평가 기준</h3><div class="feedback-criteria"></div></section>
+      <div class="feedback-columns">
+        <section><h3>강점</h3><ul class="feedback-strengths"></ul></section>
+        <section><h3>우선 개선</h3><ul class="feedback-priorities"></ul></section>
+      </div>
+      <section><h3>오개념·주의점</h3><ul class="feedback-misconceptions"></ul></section>
+      <details><summary>개선 예시 보기</summary><pre class="feedback-example"></pre></details>
+    </article>`;
+  container.querySelector(".feedback-score").textContent = `${report.total_score}/100`;
+  container.querySelector(".feedback-grade").textContent = report.grade;
+  container.querySelector(".feedback-engine").textContent = report.engine;
+  container.querySelector(".feedback-summary").textContent = report.summary;
+  container.querySelector(".feedback-example").textContent = report.improved_example;
+  renderStringList(container.querySelector(".feedback-strengths"), report.strengths);
+  renderStringList(container.querySelector(".feedback-priorities"), report.priorities);
+  renderStringList(container.querySelector(".feedback-misconceptions"), report.misconceptions);
+  const criteria = container.querySelector(".feedback-criteria");
+  (report.criteria || []).forEach((criterion) => {
+    const card = document.createElement("div");
+    card.className = "feedback-criterion";
+    const heading = document.createElement("strong");
+    heading.textContent = `${criterion.name} · ${criterion.score}/${criterion.max_score}`;
+    const feedback = document.createElement("p");
+    feedback.textContent = criterion.feedback;
+    const evidence = document.createElement("small");
+    evidence.textContent = criterion.evidence;
+    card.append(heading, feedback, evidence);
+    criteria.append(card);
+  });
+}
+
+function renderMaterialResult(container, material) {
+  container.className = "feature-result result-panel";
+  container.innerHTML = `
+    <article class="material-result">
+      <header><strong></strong><span></span></header>
+      <p class="result-meta"></p>
+      <pre></pre>
+    </article>`;
+  container.querySelector("strong").textContent = material.title;
+  container.querySelector("span").textContent = "서버 저장 완료";
+  container.querySelector(".result-meta").textContent =
+    `${material.total_pages}페이지 · ${material.processed_chunks}청크 · ${material.engine}`;
+  container.querySelector("pre").textContent = material.summary;
+}
+
+function renderAudioResult(container, analysis) {
+  const dna = analysis.persona_profile?.dna || {};
+  container.className = "feature-result result-panel";
+  container.innerHTML = `
+    <article class="audio-result">
+      <header><strong>교수 음성 특징 추출 완료</strong><span></span></header>
+      <p class="audio-summary"></p>
+      <dl class="audio-dna">
+        <div><dt>톤앤매너</dt><dd class="audio-tone"></dd></div>
+        <div><dt>문장 구조</dt><dd class="audio-structure"></dd></div>
+        <div><dt>지적 방식</dt><dd class="audio-criticism"></dd></div>
+      </dl>
+      <div class="audio-tags"></div>
+      <details><summary>고정 transcript.txt 전문 보기</summary><pre class="audio-transcript"></pre></details>
+    </article>`;
+  container.querySelector("header span").textContent = analysis.engine;
+  container.querySelector(".audio-summary").textContent = analysis.persona_profile?.summary_bio || analysis.summary;
+  container.querySelector(".audio-tone").textContent = dna.tone_description || "-";
+  container.querySelector(".audio-structure").textContent = dna.sentence_structure || "-";
+  container.querySelector(".audio-criticism").textContent = dna.criticism_style || "-";
+  container.querySelector(".audio-transcript").textContent = analysis.professor_transcript;
+  const tags = container.querySelector(".audio-tags");
+  [...(dna.sentence_endings || []), ...(dna.filler_words || [])].forEach((value) => {
+    const tag = document.createElement("span");
+    tag.textContent = value;
+    tags.append(tag);
+  });
+}
 
 function openFeature(feature) {
-  const profile = professorProfiles.find((item) => item.id === selectedProfessorId);
+  const profile = selectedProfessor();
   const title = document.querySelector("#feature-modal-title");
   const content = document.querySelector(".feature-modal-content");
+  featureRequestController?.abort();
+  featureRequestController = null;
 
   if (feature === "chat") {
-    title.textContent = "교수 챗봇";
+    title.textContent = `${profile.name}와 대화`;
     content.innerHTML = `
       <div class="chat-workspace">
-        <div class="chat-log" aria-live="polite">
-          <div class="chat-message professor-message"></div>
-        </div>
+        <div class="chat-log" aria-live="polite"></div>
         <form class="chat-form">
           <label class="sr-only" for="chat-input">교수에게 보낼 메시지</label>
-          <textarea id="chat-input" rows="2" maxlength="500" placeholder="교수에게 질문을 입력하세요" required></textarea>
+          <textarea id="chat-input" rows="2" maxlength="12000" placeholder="교수에게 질문을 입력하세요" required></textarea>
           <button type="submit">전송</button>
+          <p class="chat-status" role="status" aria-live="polite"></p>
         </form>
       </div>
     `;
-    content.querySelector(".professor-message").textContent =
-      `${profile.name}입니다. 과제에 관해 궁금한 점을 질문하세요.`;
+    renderChatHistory(content.querySelector(".chat-log"), profile);
     content.querySelector(".chat-form").addEventListener("submit", handleChatSubmit);
-  } else {
-    const settings = uploadFeatureSettings[feature];
-    if (!settings) {
-      return;
-    }
-    title.textContent = settings.title;
+  } else if (feature === "review") {
+    title.textContent = "과제 첨삭";
     content.innerHTML = `
-      <form class="feature-upload-form">
-        <p class="upload-guide"></p>
+      <form class="review-form">
+        <p class="upload-guide">저장된 최신 강의자료 요약을 자동으로 불러옵니다. 없으면 직접 입력하세요.</p>
+        <label><span>강의 요약</span><textarea name="lectureSummary" rows="5" minlength="20" required></textarea></label>
+        <p class="lecture-source-status" role="status">강의자료 확인 중…</p>
+        <label><span>과제 지시문</span><textarea name="assignmentPrompt" rows="4" minlength="5" placeholder="교수가 제시한 과제 요구사항을 입력하세요." required></textarea></label>
+        <label class="compact-file-field"><span>학생 제출 과제</span><input name="submissionFile" type="file" accept=".txt,.md,.pdf,.docx" required /></label>
+        <button class="feature-submit-button" type="submit">실제 첨삭 요청하기</button>
+        <div class="feature-result" role="status" aria-live="polite"></div>
+      </form>`;
+    const form = content.querySelector(".review-form");
+    form.addEventListener("submit", handleReviewSubmit);
+    void hydrateLectureSummary(form, profile.id);
+  } else if (feature === "material") {
+    title.textContent = "강의 자료 PDF 요약·저장";
+    content.innerHTML = `
+      <form class="feature-upload-form material-upload-form">
+        <p class="upload-guide">PDF를 실제 Parse → Clean → Chunk → Map → Reduce 파이프라인으로 요약합니다.</p>
+        <label class="feature-text-field"><span>자료 제목</span><input name="title" type="text" maxlength="200" placeholder="예: 3주차 알고리즘 강의" required /></label>
         <label class="upload-dropzone" tabindex="0">
-          <input type="file" accept="${settings.accept}" required />
-          <strong>파일 선택</strong>
-          <span>파일을 클릭해서 불러오세요</span>
+          <input name="file" type="file" accept="application/pdf,.pdf" required />
+          <strong>PDF 파일 선택</strong>
+          <span>최대 25MB</span>
         </label>
         <p class="upload-file-name" role="status">선택된 파일이 없습니다.</p>
-        <button class="feature-submit-button" type="submit" disabled></button>
-        <p class="feature-result" role="status" aria-live="polite"></p>
-      </form>
-    `;
-    content.querySelector(".upload-guide").textContent = settings.guide;
-    content.querySelector(".feature-submit-button").textContent = settings.button;
-    setupUploadForm(content.querySelector(".feature-upload-form"), settings.title);
+        <button class="feature-submit-button" type="submit" disabled>PDF 요약하고 저장하기</button>
+        <div class="feature-result" role="status" aria-live="polite"></div>
+      </form>`;
+    setupMaterialForm(content.querySelector(".material-upload-form"));
+  } else if (feature === "audio") {
+    title.textContent = "강의 음성 특징 분석";
+    content.innerHTML = `
+      <form class="feature-upload-form audio-upload-form">
+        <p class="upload-guide">데모 모드: 실제 STT는 호출하지 않고 transcript.txt를 고정 전문으로 사용합니다.</p>
+        <label class="upload-dropzone" tabindex="0">
+          <input name="file" type="file" accept=".mp3,.wav,.m4a,.ogg,.flac,.aac,.webm,.wma,audio/*" required />
+          <strong>강의 음성 선택</strong>
+          <span>파일명과 크기만 서버에 전달해 모의 분석합니다.</span>
+        </label>
+        <p class="upload-file-name" role="status">선택된 파일이 없습니다.</p>
+        <button class="feature-submit-button" type="submit" disabled>음성 특징 추출하기</button>
+        <div class="feature-result" role="status" aria-live="polite"></div>
+      </form>`;
+    setupAudioForm(content.querySelector(".audio-upload-form"));
+  } else {
+    return;
   }
 
   featureModalBackdrop.hidden = false;
@@ -721,30 +789,105 @@ function openFeature(feature) {
   });
 }
 
-function handleChatSubmit(event) {
+async function handleChatSubmit(event) {
   event.preventDefault();
   const form = event.currentTarget;
   const input = form.querySelector("textarea");
+  const submitButton = form.querySelector("button[type='submit']");
+  const status = form.querySelector(".chat-status");
   const chatLog = form.closest(".chat-workspace").querySelector(".chat-log");
-  const userMessage = document.createElement("div");
-  userMessage.className = "chat-message user-message";
-  userMessage.textContent = input.value.trim();
-  chatLog.append(userMessage);
-  input.value = "";
-  chatLog.scrollTop = chatLog.scrollHeight;
+  const profile = selectedProfessor();
+  const message = input.value.trim();
+  if (!message) return;
 
-  window.setTimeout(() => {
-    const profile = professorProfiles.find((item) => item.id === selectedProfessorId);
-    const response = document.createElement("div");
-    response.className = "chat-message professor-message";
-    response.textContent =
-      `${profile.name}: 질문을 확인했습니다. 백엔드가 연결되면 과제와 강의 자료를 바탕으로 답변하겠습니다.`;
-    chatLog.append(response);
-    chatLog.scrollTop = chatLog.scrollHeight;
-  }, 450);
+  const history = professorChatHistories.get(profile.id) || [];
+  appendChatMessage(chatLog, "student", message);
+  history.push({ role: "student", content: message });
+  professorChatHistories.set(profile.id, history);
+  input.value = "";
+  input.disabled = true;
+  submitButton.disabled = true;
+  status.textContent = "IntentRouter → AcademicBrainAgent → PersonaStylizerAgent 실행 중…";
+  const controller = beginFeatureRequest();
+
+  try {
+    const response = await sendProfessorChat({
+      professorId: profile.id,
+      message,
+      history: history.slice(0, -1),
+      persona: currentProfessorPersona(profile),
+      signal: controller.signal,
+    });
+    if (!form.isConnected) return;
+    const sourceLabel = response.context_sources?.length
+      ? ` · 강의자료 ${response.context_sources.length}개 참고`
+      : "";
+    const meta = `${response.engine}${sourceLabel}`;
+    appendChatMessage(chatLog, "professor", response.reply, meta);
+    history.push({ role: "professor", content: response.reply, meta });
+    status.textContent = response.caution || "답변 생성이 완료되었습니다.";
+  } catch (error) {
+    if (!form.isConnected) return;
+    status.textContent = apiErrorText(error, "교수 대화 요청에 실패했습니다.");
+    status.classList.add("is-error");
+  } finally {
+    if (form.isConnected) {
+      input.disabled = false;
+      submitButton.disabled = false;
+      input.focus({ preventScroll: true });
+    }
+  }
 }
 
-function setupUploadForm(form, featureTitle) {
+async function hydrateLectureSummary(form, professorId) {
+  const status = form.querySelector(".lecture-source-status");
+  const textarea = form.elements.lectureSummary;
+  const controller = beginFeatureRequest();
+  try {
+    const materials = await getLectureMaterials(professorId, controller.signal);
+    professorLectureMaterials.set(professorId, materials);
+    if (!form.isConnected) return;
+    if (materials.length) {
+      textarea.value = materials[0].summary;
+      status.textContent = `서버 저장 자료 사용: ${materials[0].title}`;
+    } else {
+      status.textContent = "저장된 강의자료가 없습니다. 강의 요약을 직접 입력하세요.";
+    }
+  } catch (error) {
+    if (!form.isConnected) return;
+    status.textContent = `${apiErrorText(error, "강의자료를 불러오지 못했습니다.")} 직접 입력할 수 있습니다.`;
+  }
+}
+
+async function handleReviewSubmit(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const result = form.querySelector(".feature-result");
+  const submitButton = form.querySelector("button[type='submit']");
+  const submissionFile = form.elements.submissionFile.files[0];
+  if (!submissionFile) return;
+  result.className = "feature-result is-loading";
+  result.textContent = "과제 파일 추출 및 AI 첨삭을 진행하고 있습니다…";
+  submitButton.disabled = true;
+  const controller = beginFeatureRequest();
+  try {
+    const report = await gradeAssignment({
+      lectureText: form.elements.lectureSummary.value.trim(),
+      assignmentText: form.elements.assignmentPrompt.value.trim(),
+      submissionFile,
+      signal: controller.signal,
+    });
+    if (form.isConnected) renderFeedbackReport(result, report);
+  } catch (error) {
+    if (!form.isConnected) return;
+    result.className = "feature-result is-error";
+    result.textContent = apiErrorText(error, "과제 첨삭에 실패했습니다.");
+  } finally {
+    if (form.isConnected) submitButton.disabled = false;
+  }
+}
+
+function setupFileSelection(form) {
   const input = form.querySelector("input[type='file']");
   const fileName = form.querySelector(".upload-file-name");
   const submitButton = form.querySelector(".feature-submit-button");
@@ -754,26 +897,93 @@ function setupUploadForm(form, featureTitle) {
     const file = input.files[0];
     fileName.textContent = file ? file.name : "선택된 파일이 없습니다.";
     submitButton.disabled = !file;
-    result.textContent = "";
+    result.className = "feature-result";
+    result.replaceChildren();
   });
 
-  form.addEventListener("submit", (event) => {
-    event.preventDefault();
-    if (!input.files[0]) {
-      return;
+  return { input, fileName, submitButton, result };
+}
+
+function setupMaterialForm(form) {
+  const { input, submitButton, result } = setupFileSelection(form);
+  input.addEventListener("change", () => {
+    const file = input.files[0];
+    if (file && !form.elements.title.value.trim()) {
+      form.elements.title.value = file.name.replace(/\.pdf$/i, "");
     }
-    result.textContent = `${featureTitle} 준비가 완료되었습니다. 백엔드 연결 후 서버에 저장됩니다.`;
+  });
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const file = input.files[0];
+    const profile = selectedProfessor();
+    if (!file) return;
+    result.className = "feature-result is-loading";
+    result.textContent = "PDF 추출·청킹·요약·저장 중…";
+    submitButton.disabled = true;
+    const controller = beginFeatureRequest();
+    try {
+      const material = await uploadLectureMaterial({
+        professorId: profile.id,
+        title: form.elements.title.value.trim(),
+        file,
+        signal: controller.signal,
+      });
+      const existing = professorLectureMaterials.get(profile.id) || [];
+      professorLectureMaterials.set(profile.id, [material, ...existing.filter((item) => item.id !== material.id)]);
+      if (form.isConnected) renderMaterialResult(result, material);
+    } catch (error) {
+      if (!form.isConnected) return;
+      result.className = "feature-result is-error";
+      result.textContent = apiErrorText(error, "강의자료 업로드에 실패했습니다.");
+    } finally {
+      if (form.isConnected) submitButton.disabled = false;
+    }
+  });
+}
+
+function setupAudioForm(form) {
+  const { input, submitButton, result } = setupFileSelection(form);
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const file = input.files[0];
+    const profile = selectedProfessor();
+    if (!file) return;
+    result.className = "feature-result is-loading";
+    result.textContent = "STT와 화자 분석을 수행하는 것처럼 처리한 뒤 transcript.txt 특징을 추출하고 있습니다…";
+    submitButton.disabled = true;
+    const controller = beginFeatureRequest();
+    try {
+      const analysis = await analyzeLectureAudio({
+        professorId: profile.id,
+        professorName: profile.name,
+        department: profile.department,
+        subject: profile.specialty,
+        file,
+        signal: controller.signal,
+      });
+      professorPersonaProfiles.set(profile.id, analysis.persona_profile);
+      if (form.isConnected) renderAudioResult(result, analysis);
+    } catch (error) {
+      if (!form.isConnected) return;
+      result.className = "feature-result is-error";
+      result.textContent = apiErrorText(error, "강의 음성 분석에 실패했습니다.");
+    } finally {
+      if (form.isConnected) submitButton.disabled = false;
+    }
   });
 }
 
 function closeFeature() {
+  featureRequestController?.abort();
+  featureRequestController = null;
   featureModalBackdrop.hidden = true;
   document.querySelector(`[data-feature]`)?.focus({ preventScroll: true });
 }
 
 function showTitle() {
   window.clearTimeout(transitionTimer);
-  authScreen.hidden = true;
+  featureRequestController?.abort();
+  featureRequestController = null;
   introScreen.hidden = true;
   introScreen.classList.remove("is-visible");
   professorSelectScreen.hidden = true;
@@ -784,7 +994,6 @@ function showTitle() {
   closedScreen.hidden = true;
   titleScreen.hidden = false;
   titleScreen.classList.remove("is-leaving");
-  updatePlayerName();
   setSelectedMenu(0);
 }
 
@@ -837,12 +1046,6 @@ function exitGame() {
   document.querySelector(".closed-screen button").focus({ preventScroll: true });
 }
 
-function logout() {
-  sessionStorage.removeItem(sessionStorageKey);
-  Object.values(authForms).forEach((form) => form.reset());
-  showAuth();
-}
-
 function handleAction(action) {
   const actions = {
     start: startGame,
@@ -852,14 +1055,11 @@ function handleAction(action) {
     "cancel-exit": closeExitModal,
     "confirm-exit": exitGame,
     reopen: showTitle,
-    "show-login": () => showAuthView("login"),
-    "show-signup": () => showAuthView("signup"),
     "back-to-intro": backToIntro,
     "back-to-professors": backToProfessors,
     "close-feature": closeFeature,
     "cancel-selection": cancelSelection,
     "confirm-selection": confirmSelection,
-    logout,
   };
 
   actions[action]?.();
@@ -911,55 +1111,6 @@ submissionForm.addEventListener("submit", (event) => {
 
   document.querySelector(".submission-message").textContent = "";
   openSelectionModal(customization);
-});
-
-authForms.login.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const form = event.currentTarget;
-  const formData = new FormData(form);
-  const accountId = formData.get("account").trim().toLowerCase();
-  const passwordHash = await hashPassword(formData.get("password"));
-  const account = readAccounts().find((item) => item.account === accountId);
-
-  if (!account || account.passwordHash !== passwordHash) {
-    setAuthMessage(form, "계정 또는 비밀번호가 일치하지 않습니다.");
-    return;
-  }
-
-  setAuthMessage(form, "확인되었습니다. 연구실 문을 여는 중입니다.", true);
-  enterTitle(account);
-});
-
-authForms.signup.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const form = event.currentTarget;
-  const formData = new FormData(form);
-  const name = formData.get("name").trim();
-  const accountId = formData.get("account").trim().toLowerCase();
-  const password = formData.get("password");
-  const passwordConfirm = formData.get("passwordConfirm");
-  const accounts = readAccounts();
-
-  if (password !== passwordConfirm) {
-    setAuthMessage(form, "비밀번호 확인이 일치하지 않습니다.");
-    return;
-  }
-
-  if (accounts.some((account) => account.account === accountId)) {
-    setAuthMessage(form, "이미 수강 명단에 등록된 계정입니다.");
-    return;
-  }
-
-  const account = {
-    name,
-    account: accountId,
-    passwordHash: await hashPassword(password),
-  };
-
-  accounts.push(account);
-  saveAccounts(accounts);
-  setAuthMessage(form, "등록되었습니다. 연구실 문을 여는 중입니다.", true);
-  enterTitle(account);
 });
 
 document.addEventListener("keydown", (event) => {
@@ -1019,7 +1170,7 @@ document.addEventListener("keydown", (event) => {
     return;
   }
 
-  if (event.key === "Escape" && authScreen.hidden && titleScreen.hidden) {
+  if (event.key === "Escape" && titleScreen.hidden) {
     event.preventDefault();
     showTitle();
   }
@@ -1033,8 +1184,4 @@ initializeProfessorRoster();
 renderProfessor(selectedProfessorId);
 setSelectedMenu(0);
 
-if (getSession()) {
-  showTitle();
-} else {
-  showAuth();
-}
+showTitle();

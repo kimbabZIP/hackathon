@@ -4,6 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "api": "powershell -NoProfile -ExecutionPolicy Bypass -File ./run_api.ps1",
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview"
