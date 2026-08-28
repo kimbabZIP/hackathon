@@ -121,11 +121,19 @@ def _normalize_persona_profile(
     raw_dna = profile.get("dna")
     dna = dict(raw_dna) if isinstance(raw_dna, dict) else {}
 
-    def string_list(key: str, default: list[str] | None = None) -> list[str]:
+    def string_list(
+        key: str,
+        default: list[str] | None = None,
+        *,
+        max_items: int | None = None,
+    ) -> list[str]:
         value = dna.get(key)
         if not isinstance(value, list):
-            return list(default or [])
-        return [str(item).strip() for item in value if str(item).strip()]
+            normalized = list(default or [])
+        else:
+            normalized = [str(item).strip() for item in value if str(item).strip()]
+        unique = list(dict.fromkeys(normalized))
+        return unique[:max_items] if max_items is not None else unique
 
     def description(key: str, default: str) -> str:
         value = dna.get(key)
@@ -140,8 +148,8 @@ def _normalize_persona_profile(
             or "업로드한 강의 음성의 실제 교수 발화를 바탕으로 구성한 말투 프로필입니다.",
             "dna": {
                 **dna,
-                "sentence_endings": string_list("sentence_endings"),
-                "filler_words": string_list("filler_words"),
+                "sentence_endings": string_list("sentence_endings", max_items=8),
+                "filler_words": string_list("filler_words", max_items=8),
                 "tone_description": description(
                     "tone_description",
                     "업로드한 강의 음성에서 추출된 교수 발화의 어조를 따릅니다.",

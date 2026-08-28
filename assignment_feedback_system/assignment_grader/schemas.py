@@ -187,6 +187,7 @@ class ProfessorChatTokenUsage(BaseModel):
 class ProfessorChatResponse(BaseModel):
     type: Literal["CHAT"] = "CHAT"
     reply: str
+    suggested_questions: list[str] = Field(default_factory=list, max_length=2)
     intent: Literal["CASUAL_CHAT", "ACADEMIC_QA", "ASSIGNMENT_EVAL"]
     confidence: float = Field(ge=0, le=1)
     expression: Literal["normal", "strict", "smile", "thoughtful", "surprised"] = "normal"

@@ -470,6 +470,14 @@
                 <dt>첨삭 일시</dt>
                 <dd class="report-document-date"></dd>
               </div>
+              <div>
+                <dt>평가 결과</dt>
+                <dd class="report-document-grade"></dd>
+              </div>
+              <div>
+                <dt>분석 엔진</dt>
+                <dd class="report-document-engine"></dd>
+              </div>
             </dl>
 
             <section>
@@ -479,30 +487,17 @@
 
             <section>
               <h2>항목별 평가</h2>
-              <div class="report-score-chart" aria-label="첨삭 항목별 점수">
-                <div><span>논리 구조</span><i><b style="--score: 72%"></b></i><strong>72</strong></div>
-                <div><span>근거 활용</span><i><b style="--score: 64%"></b></i><strong>64</strong></div>
-                <div><span>문장 표현</span><i><b style="--score: 81%"></b></i><strong>81</strong></div>
-                <div><span>형식 완성도</span><i><b style="--score: 76%"></b></i><strong>76</strong></div>
-              </div>
+              <div class="report-score-chart" aria-label="첨삭 항목별 점수"></div>
             </section>
 
             <section>
               <h2>우선 수정 항목</h2>
-              <ol>
-                <li>각 문단의 핵심 주장을 첫 문장에 명확히 제시할 것</li>
-                <li>주장 직후 신뢰할 수 있는 출처와 구체적 사례를 배치할 것</li>
-                <li>결론에서 본론의 핵심 근거를 빠짐없이 회수할 것</li>
-              </ol>
+              <ol class="report-document-priorities"></ol>
             </section>
 
             <section>
               <h2>세부 첨삭 방향</h2>
-              <p>
-                서론에서는 문제의 범위와 핵심 용어를 먼저 정의하고, 본론에서는 하나의 문단에
-                하나의 주장만 배치하세요. 인용한 자료는 출처와 작성 시점을 함께 표시하고,
-                사례가 주장에 어떤 의미를 갖는지 직접 설명해야 합니다.
-              </p>
+              <p class="report-document-detail"></p>
             </section>
 
             <button class="report-document-download" type="button" data-action="download-review-report">
@@ -622,12 +617,9 @@
             <button type="button" data-chat-suggestion="1">
               <span class="chatbot-suggestion-text"></span>
             </button>
-            <button class="chatbot-direct-button" type="button" data-action="open-chatbot-input">
-              <span class="sr-only">질문 직접 입력하기</span>
-            </button>
           </nav>
 
-          <form class="chatbot-direct-form" id="chatbot-direct-form" hidden>
+          <form class="chatbot-direct-form" id="chatbot-direct-form">
             <label class="sr-only" for="chatbot-direct-input">교수에게 직접 질문</label>
             <input
               id="chatbot-direct-input"
@@ -642,8 +634,17 @@
           </form>
 
           <p class="chatbot-professor-name"></p>
-          <p class="chatbot-answer" aria-live="polite"></p>
+          <button
+            class="chatbot-answer"
+            type="button"
+            data-action="advance-chatbot-answer"
+            aria-live="polite"
+            aria-label="교수 답변"
+          ></button>
           <span class="chatbot-typewriter-cursor" aria-hidden="true"></span>
+          <span class="chatbot-continue-hint" aria-hidden="true" hidden>
+            클릭해서 계속 ▶
+          </span>
 
           <nav class="chatbot-history-controls" aria-label="대화 기록 이동">
             <button type="button" data-action="chatbot-back" disabled>

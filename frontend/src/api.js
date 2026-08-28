@@ -74,9 +74,22 @@ async function requestJson(path, options = {}, timeoutMs = DEFAULT_TIMEOUT_MS) {
   }
 }
 
+function authUserFromResponse(response) {
+  const user = response?.user;
+  if (
+    !user ||
+    typeof user.id !== "string" ||
+    typeof user.login_id !== "string" ||
+    typeof user.display_name !== "string"
+  ) {
+    throw new ScholarlyApiError("인증 서버의 응답 형식이 올바르지 않습니다.");
+  }
+  return user;
+}
+
 export async function getCurrentUser(signal) {
   const response = await requestJson("/auth/me", { method: "GET", signal }, 10_000);
-  return response.user;
+  return authUserFromResponse(response);
 }
 
 export async function loginUser({ loginId, password, signal }) {
@@ -86,7 +99,7 @@ export async function loginUser({ loginId, password, signal }) {
     body: JSON.stringify({ login_id: loginId, password }),
     signal,
   }, 15_000);
-  return response.user;
+  return authUserFromResponse(response);
 }
 
 export async function registerUser({ loginId, password, displayName, email, signal }) {
@@ -101,7 +114,7 @@ export async function registerUser({ loginId, password, displayName, email, sign
     }),
     signal,
   }, 15_000);
-  return response.user;
+  return authUserFromResponse(response);
 }
 
 export function logoutUser(signal) {
@@ -141,16 +154,35 @@ export function uploadLectureMaterial({ professorId, title, file, signal }) {
   return requestJson("/materials/summarize", { method: "POST", body, signal }, PDF_TIMEOUT_MS);
 }
 
-export function gradeAssignment({ lectureText, assignmentText, submissionFile, signal }) {
+export async function gradeAssignment({
+  lectureText,
+  assignmentText,
+  submissionFile,
+  signal,
+  requireAi = true,
+}) {
   const body = new FormData();
   body.append("lecture_text", lectureText);
   body.append("assignment_text", assignmentText);
   body.append("submission_file", submissionFile);
-  return requestJson("/assignments/grade-files", { method: "POST", body, signal });
+  const query = new URLSearchParams({ require_ai: String(requireAi) });
+  const report = await requestJson(
+    `/assignments/grade-files?${query}`,
+    { method: "POST", body, signal },
+  );
+  if (
+    typeof report?.summary !== "string" ||
+    typeof report?.total_score !== "number" ||
+    !Array.isArray(report?.criteria) ||
+    !Array.isArray(report?.priorities)
+  ) {
+    throw new ScholarlyApiError("과제 첨삭 서버의 응답 형식이 올바르지 않습니다.");
+  }
+  return report;
 }
 
-export function sendProfessorChat({ professorId, message, history, persona, signal }) {
-  return requestJson("/chat", {
+export async function sendProfessorChat({ professorId, message, history, persona, signal }) {
+  const response = await requestJson("/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -164,6 +196,13 @@ export function sendProfessorChat({ professorId, message, history, persona, sign
     }),
     signal,
   });
+  if (typeof response?.reply !== "string" || !response.reply.trim()) {
+    throw new ScholarlyApiError("교수 대화 서버의 응답 형식이 올바르지 않습니다.");
+  }
+  response.suggested_questions = Array.isArray(response.suggested_questions)
+    ? response.suggested_questions
+    : [];
+  return response;
 }
 
 export function analyzeLectureAudio({

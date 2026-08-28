@@ -7,7 +7,7 @@ import re
 import time
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from assignment_grader.professor_chat_log import append_professor_chat_record
 from assignment_grader.schemas import (
@@ -31,6 +31,7 @@ class IntentDecision(BaseModel):
 class StyledReply(BaseModel):
     reply: str
     expression: Literal["normal", "strict", "smile", "thoughtful", "surprised"] = "normal"
+    suggested_questions: list[str] = Field(default_factory=list, max_length=2)
 
 
 def _history_text(request: ProfessorChatRequest) -> str:
@@ -83,6 +84,23 @@ def _local_expression(intent: ChatIntent, message: str) -> str:
     return "normal"
 
 
+def _local_suggested_questions(intent: ChatIntent) -> list[str]:
+    if intent == "ASSIGNMENT_EVAL":
+        return [
+            "과제 첨삭 메뉴에서는 어떤 자료가 필요한가요?",
+            "지금 답변에서 가장 먼저 고칠 부분은 무엇인가요?",
+        ]
+    if intent == "ACADEMIC_QA":
+        return [
+            "방금 설명을 구체적인 사례로 다시 보여 주세요.",
+            "제가 이해했는지 확인할 연습문제를 내 주세요.",
+        ]
+    return [
+        "이 과목에서 가장 먼저 잡아야 할 핵심 개념은 무엇인가요?",
+        "이번 과제에서 특히 주의할 점은 무엇인가요?",
+    ]
+
+
 class LocalProfessorChatEngine:
     name = "로컬 교수 대화 엔진"
 
@@ -113,6 +131,7 @@ class LocalProfessorChatEngine:
         elapsed = (time.perf_counter() - started) * 1000
         return ProfessorChatResponse(
             reply=reply,
+            suggested_questions=_local_suggested_questions(decision.intent),
             intent=decision.intent,
             confidence=decision.confidence,
             expression=_local_expression(decision.intent, message),
@@ -274,6 +293,8 @@ class GeminiProfessorChatEngine:
 - 각 문장은 대화창에서 나누어 표시할 수 있도록 자연스럽고 명확하게 끝맺는다.
 - expression은 답변 분위기에 맞춰 normal, strict, smile, thoughtful, surprised 중 하나를 고른다.
 - reply만 교수의 실제 발화로 작성하고 설명이나 메타 발언을 넣지 않는다.
+- suggested_questions에는 학생이 이 답변 다음에 자연스럽게 물을 만한 짧은 후속 질문을 정확히 2개 작성한다.
+- 두 후속 질문은 서로 다른 방향이어야 하며, 학생이 교수에게 직접 말하는 문장으로 작성한다.
 
 [답변 원본]
 {academic_answer}"""
@@ -316,6 +337,7 @@ class GeminiProfessorChatEngine:
         total_ms = (time.perf_counter() - started) * 1000
         return ProfessorChatResponse(
             reply=styled.reply.strip(),
+            suggested_questions=styled.suggested_questions,
             intent=decision.intent,
             confidence=max(0, min(1, decision.confidence)),
             expression=styled.expression,

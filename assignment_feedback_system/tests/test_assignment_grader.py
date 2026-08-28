@@ -172,6 +172,23 @@ def test_mock_audio_analysis_uses_fixed_transcript(monkeypatch, tmp_path: Path) 
     assert payload["persona_profile"]["dna"]["sentence_endings"]
 
 
+def test_audio_persona_lists_are_limited_to_chat_contract() -> None:
+    profile = lecture_audio_module._normalize_persona_profile(
+        {
+            "dna": {
+                "sentence_endings": [f"어미-{index}" for index in range(14)],
+                "filler_words": [f"추임새-{index}" for index in range(14)],
+            },
+        },
+        professor_name="테스트 교수",
+        department="컴퓨터공학과",
+        subject="알고리즘",
+    )
+
+    assert profile["dna"]["sentence_endings"] == [f"어미-{index}" for index in range(8)]
+    assert profile["dna"]["filler_words"] == [f"추임새-{index}" for index in range(8)]
+
+
 def test_audio_analysis_falls_back_to_real_pipeline_when_transcript_is_missing(
     monkeypatch,
     tmp_path: Path,
@@ -379,6 +396,7 @@ def test_local_professor_chat_routes_academic_question() -> None:
     response = asyncio.run(LocalProfessorChatEngine().chat(_chat_request("은유와 상징의 차이를 설명해 주세요.")))
     assert response.intent == "ACADEMIC_QA"
     assert response.reply
+    assert len(response.suggested_questions) == 2
     assert response.expression == "thoughtful"
     assert response.execution_trace.steps[0].name == "LocalIntentRouter"
     assert "ACADEMIC_QA" in (response.execution_trace.steps[0].output or "")
@@ -401,7 +419,14 @@ def test_gemini_professor_chat_exposes_each_agent_output(monkeypatch, tmp_path) 
             ), 12.5
         if schema is StyledReply:
             return SimpleNamespace(
-                parsed=StyledReply(reply="교수 말투가 적용된 최종 답변일세.", expression="thoughtful"),
+                parsed=StyledReply(
+                    reply="교수 말투가 적용된 최종 답변일세.",
+                    expression="thoughtful",
+                    suggested_questions=[
+                        "은유의 사례를 더 보여 주세요.",
+                        "상징을 찾는 연습문제를 내 주세요.",
+                    ],
+                ),
                 text="",
                 usage_metadata=None,
             ), 18.0
@@ -432,6 +457,10 @@ def test_gemini_professor_chat_exposes_each_agent_output(monkeypatch, tmp_path) 
     assert steps[1].output == "말투 적용 전의 학술 답변 원본입니다."
     assert "교수 말투가 적용된 최종 답변" in (steps[2].output or "")
     assert response.context_sources == [source]
+    assert response.suggested_questions == [
+        "은유의 사례를 더 보여 주세요.",
+        "상징을 찾는 연습문제를 내 주세요.",
+    ]
     assert calls[0][2] == {"model": "test-fast-model", "max_output_tokens": 96, "temperature": 0.1}
     assert calls[1][2] == {"model": "test-model", "max_output_tokens": 2048, "temperature": 0.2}
     assert calls[2][2] == {"model": "test-fast-model", "max_output_tokens": 2048, "temperature": 0.2}
