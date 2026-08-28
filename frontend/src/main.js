@@ -1,3 +1,9 @@
+import introBgmUrl from "../bgm/leze_clip.mp3";
+import professorSelectBgmUrl from "../bgm/PUBG_BGM.mp3";
+import officeBgmUrl from "../bgm/miyoeonsiBGM.mp3";
+import buttonSfxUrl from "../bgm/button.mp3";
+import characterSfxUrl from "../bgm/character.mp3";
+
 const authScreen = document.querySelector(".auth-screen");
 const titleScreen = document.querySelector(".title-screen");
 const titleImage = document.querySelector(".title-image");
@@ -22,6 +28,90 @@ const authForms = {
   login: document.querySelector("#login-form"),
   signup: document.querySelector("#signup-form"),
 };
+
+const introBgm = createLoopingBgm(introBgmUrl);
+const professorSelectBgm = createLoopingBgm(professorSelectBgmUrl);
+const officeBgm = createLoopingBgm(officeBgmUrl);
+const loopingBgmTracks = [introBgm, professorSelectBgm, officeBgm];
+let lastHoverSfxTarget = null;
+
+function createLoopingBgm(url) {
+  const audio = new Audio(url);
+  audio.loop = true;
+  audio.preload = "auto";
+  audio.volume = 0.42;
+  audio.addEventListener("ended", () => {
+    audio.currentTime = 0;
+    audio.play().catch(() => {});
+  });
+  return audio;
+}
+
+function playBgm(track) {
+  loopingBgmTracks.forEach((item) => {
+    if (item !== track) {
+      stopBgm(item);
+    }
+  });
+  if (!track.paused) {
+    return;
+  }
+  track.play().catch(() => {});
+}
+
+function stopBgm(track) {
+  track.pause();
+  track.currentTime = 0;
+}
+
+function stopAllBgm() {
+  loopingBgmTracks.forEach(stopBgm);
+}
+
+function playIntroBgm() {
+  playBgm(introBgm);
+}
+
+function playProfessorSelectBgm() {
+  playBgm(professorSelectBgm);
+}
+
+function playOfficeBgm() {
+  playBgm(officeBgm);
+}
+
+function stopProfessorSelectBgm() {
+  stopBgm(professorSelectBgm);
+}
+
+function isOfficeFlowVisible() {
+  return !professorOfficeScreen.hidden
+    || !assignmentReviewScreen.hidden
+    || !previousAssignmentsScreen.hidden
+    || !reviewResultScreen.hidden
+    || !reviewReportScreen.hidden
+    || !courseMaterialScreen.hidden
+    || !lectureAudioScreen.hidden
+    || !chatbotScreen.hidden;
+}
+
+function playSfx(url, volume = 0.72) {
+  const sfx = new Audio(url);
+  sfx.volume = volume;
+  sfx.play().catch(() => {});
+}
+
+function playHoverTick() {
+  playSfx(buttonSfxUrl, 0.55);
+}
+
+function playClickSfx() {
+  playSfx(buttonSfxUrl, 0.8);
+}
+
+function playConfirmSfx() {
+  playSfx(characterSfxUrl, 0.85);
+}
 
 let selectedMenuIndex = 0;
 let selectedProfessorId = "yoon";
@@ -504,6 +594,7 @@ function showAuth() {
   selectionToast.hidden = true;
   authScreen.hidden = false;
   authScreen.classList.remove("is-leaving");
+  playIntroBgm();
   showAuthView("login");
 }
 
@@ -591,6 +682,7 @@ function initializeProfessorRoster() {
     });
     tile.addEventListener("focus", () => renderProfessor(professorId));
     tile.addEventListener("click", () => {
+      playClickSfx();
       professorSelectionLocked = true;
       window.clearTimeout(professorHoverTimer);
       renderProfessor(professorId);
@@ -703,6 +795,7 @@ function renderProfessor(professorId) {
 }
 
 function backToIntro() {
+  playIntroBgm();
   professorSelectScreen.hidden = true;
   introScreen.hidden = false;
   requestAnimationFrame(() => {
@@ -769,6 +862,8 @@ function showProfessorOffice() {
     return;
   }
 
+  playOfficeBgm();
+
   document.querySelector(".office-professor-image").src = profile.heroImage;
   document.querySelector(".office-professor-image").alt = `${profile.name} 전신`;
   document.querySelector(".office-professor-name").textContent = profile.name;
@@ -802,6 +897,7 @@ function backToProfessors() {
   chatbotScreen.hidden = true;
   professorOfficeScreen.hidden = true;
   professorSelectScreen.hidden = false;
+  playProfessorSelectBgm();
   renderProfessor(selectedProfessorId);
   document.querySelector(`[data-professor-id="${selectedProfessorId}"]`)
     ?.focus({ preventScroll: true });
@@ -1342,6 +1438,7 @@ function closeFeature() {
 
 function showTitle() {
   window.clearTimeout(transitionTimer);
+  playIntroBgm();
   authScreen.hidden = true;
   introScreen.hidden = true;
   introScreen.classList.remove("is-visible");
@@ -1385,6 +1482,7 @@ function continueGame() {
   transitionTimer = window.setTimeout(() => {
     introScreen.hidden = true;
     professorSelectScreen.hidden = false;
+    playProfessorSelectBgm();
     renderProfessor(selectedProfessorId);
     document.querySelector(`[data-professor-id="${selectedProfessorId}"]`)
       ?.focus({ preventScroll: true });
@@ -1403,6 +1501,7 @@ function closeExitModal() {
 
 function exitGame() {
   modalBackdrop.hidden = true;
+  stopAllBgm();
   titleScreen.hidden = true;
   introScreen.hidden = true;
   professorSelectScreen.hidden = true;
@@ -1461,6 +1560,27 @@ function handleAction(action) {
 
   actions[action]?.();
 }
+
+document.addEventListener("pointerover", (event) => {
+  const target = event.target.closest("button");
+  if (!target || target.disabled || target === lastHoverSfxTarget) {
+    return;
+  }
+
+  lastHoverSfxTarget = target;
+  playHoverTick();
+});
+
+document.addEventListener("pointerout", (event) => {
+  const target = event.target.closest("button");
+  if (!target || target.contains(event.relatedTarget)) {
+    return;
+  }
+
+  if (lastHoverSfxTarget === target) {
+    lastHoverSfxTarget = null;
+  }
+});
 
 document.addEventListener("click", (event) => {
   const featureTarget = event.target.closest("[data-feature]");
@@ -1521,6 +1641,7 @@ submissionForm.addEventListener("submit", (event) => {
   }
 
   document.querySelector(".submission-message").textContent = "";
+  playConfirmSfx();
   openSelectionModal(customization);
 });
 
@@ -1959,3 +2080,21 @@ if (getSession()) {
 } else {
   showAuth();
 }
+
+const unlockBgmPlayback = () => {
+  if (!professorSelectScreen.hidden) {
+    playProfessorSelectBgm();
+    return;
+  }
+  if (isOfficeFlowVisible()) {
+    playOfficeBgm();
+    return;
+  }
+  if (!authScreen.hidden || !titleScreen.hidden || !introScreen.hidden) {
+    playIntroBgm();
+  }
+};
+
+["pointerdown", "keydown"].forEach((eventName) => {
+  document.addEventListener(eventName, unlockBgmPlayback, { once: true });
+});
