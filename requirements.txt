@@ -1,0 +1,21 @@
+# PDF 파이프라인 의존성
+# Python 3.11+ 필요
+
+# PDF 파싱
+PyMuPDF>=1.23.0
+
+# LLM SDK
+google-generativeai>=0.1.0
+openai>=1.0.0
+
+# 데이터 유효성 검사
+pydantic>=2.0.0
+
+# 재시도 로직
+tenacity>=8.2.0
+
+# 환경변수 관리 (선택, .env 파일 사용 시)
+python-dotenv>=1.0.0
+
+# 이미지 처리 (Vision OCR 페이지 렌더링용)
+Pillow>=10.0.0
