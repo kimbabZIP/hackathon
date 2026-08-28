@@ -50,6 +50,7 @@ const professorSelectBgm = createLoopingBgm(professorSelectBgmUrl);
 const officeBgm = createLoopingBgm(officeBgmUrl);
 const loopingBgmTracks = [introBgm, professorSelectBgm, officeBgm];
 let lastHoverSfxTarget = null;
+let currentProfessorVoice = null;
 
 function createLoopingBgm(url) {
   const audio = new Audio(url);
@@ -125,6 +126,14 @@ function playConfirmSfx() {
   playSfx(characterSfxUrl, 0.85);
 }
 
+function stopProfessorVoice() {
+  currentProfessorVoice?.pause();
+  if (currentProfessorVoice) {
+    currentProfessorVoice.currentTime = 0;
+    currentProfessorVoice = null;
+  }
+}
+
 let currentUser = null;
 let featureRequestController = null;
 let selectedMenuIndex = 0;
@@ -169,6 +178,10 @@ const professorFullBodyModules = import.meta.glob(
   "/assets/professors_every/*.{png,jpg,jpeg,webp,avif,PNG,JPG,JPEG,WEBP,AVIF}",
   { eager: true, query: "?url", import: "default" },
 );
+const professorVoiceModules = import.meta.glob(
+  "/assets/professor_tts/*.mp3",
+  { eager: true, query: "?url", import: "default" },
+);
 
 function sortProfessorAssets(assetModules) {
   return Object.entries(assetModules)
@@ -182,6 +195,50 @@ function sortProfessorAssets(assetModules) {
 
 const professorAssetUrls = sortProfessorAssets(professorAssetModules);
 const professorFullBodyUrls = sortProfessorAssets(professorFullBodyModules);
+const professorVoiceUrls = sortProfessorAssets(professorVoiceModules);
+const professorVoiceProfileIds = ["yoon", "jung", "oh", "miller", "kiro"];
+const professorVoiceUrlsById = new Map(
+  professorVoiceProfileIds.map((professorId, index) => [
+    professorId,
+    professorVoiceUrls.slice(index * 3, index * 3 + 3),
+  ]),
+);
+const professorVoicePlayersByUrl = new Map(
+  professorVoiceUrls.map((voiceUrl) => {
+    const voice = new Audio(voiceUrl);
+    voice.preload = "auto";
+    voice.volume = 1;
+    voice.load();
+    return [voiceUrl, voice];
+  }),
+);
+
+function playProfessorVoice(professorId = selectedProfessorId) {
+  stopProfessorVoice();
+  const voiceUrls = professorVoiceUrlsById.get(professorId);
+  if (!voiceUrls?.length) {
+    return;
+  }
+
+  const voiceUrl = voiceUrls[Math.floor(Math.random() * voiceUrls.length)];
+  const voice = professorVoicePlayersByUrl.get(voiceUrl);
+  voice.currentTime = 0;
+  voice.onplaying = () => {
+    console.debug(`[professor-voice] 재생 시작: ${professorId}`, voiceUrl);
+  };
+  voice.onended = () => {
+    if (currentProfessorVoice === voice) {
+      currentProfessorVoice = null;
+    }
+  };
+  currentProfessorVoice = voice;
+  voice.play().catch((error) => {
+    if (currentProfessorVoice === voice) {
+      currentProfessorVoice = null;
+    }
+    console.warn(`교수 음성을 재생하지 못했습니다: ${professorId}`, error);
+  });
+}
 
 const professorProfiles = [
   {
@@ -683,6 +740,7 @@ function showAuthView(view) {
 
 function showAuth() {
   window.clearTimeout(transitionTimer);
+  stopProfessorVoice();
   titleScreen.hidden = true;
   introScreen.hidden = true;
   professorSelectScreen.hidden = true;
@@ -793,9 +851,9 @@ function initializeProfessorRoster() {
     tile.addEventListener("focus", () => renderProfessor(professorId));
     tile.addEventListener("click", () => {
       playClickSfx();
-      professorSelectionLocked = true;
       window.clearTimeout(professorHoverTimer);
       renderProfessor(professorId);
+      playProfessorVoice(professorId);
     });
   });
 
@@ -837,6 +895,11 @@ function initializeProfessorRoster() {
     tiles[Math.max(0, Math.min(tiles.length - 1, nextIndex))].focus();
   });
 }
+
+document.querySelector(".professor-visual").addEventListener("click", () => {
+  playClickSfx();
+  playProfessorVoice(selectedProfessorId);
+});
 
 function renderProfessor(professorId) {
   const profileIndex = professorProfiles.findIndex((profile) => profile.id === professorId);
@@ -973,6 +1036,7 @@ function showProfessorOffice() {
   }
 
   playOfficeBgm();
+  playProfessorVoice(profile.id);
 
   document.querySelector(".office-professor-image").src = profile.heroImage;
   document.querySelector(".office-professor-image").alt = `${profile.name} 전신`;
@@ -998,6 +1062,7 @@ function showProfessorOffice() {
 }
 
 function backToProfessors() {
+  stopProfessorVoice();
   featureModalBackdrop.hidden = true;
   assignmentReviewScreen.hidden = true;
   previousAssignmentsScreen.hidden = true;
@@ -1119,6 +1184,7 @@ function typeReviewComment(comment) {
 
 function showReviewResult(prompt, fileName, report) {
   const profile = selectedProfessor();
+  playProfessorVoice(profile.id);
   const professorImage = document.querySelector(".review-result-professor");
   const imageRequestId = ++resultProfessorRequestId;
   professorImage.classList.add("is-processing");
@@ -1770,6 +1836,7 @@ async function askChatbotQuestion(question) {
 
 function showChatbot(context = "general") {
   const profile = professorProfiles.find((item) => item.id === selectedProfessorId);
+  playProfessorVoice(profile.id);
   const { material, audio } = getSelectedProfessorUploads();
   const linkedSources = [material, audio].filter(Boolean).length;
   const isReviewContext = context === "review";
@@ -1882,6 +1949,7 @@ function closeFeature() {
 
 function showTitle() {
   window.clearTimeout(transitionTimer);
+  stopProfessorVoice();
   playIntroBgm();
   authScreen.hidden = true;
   introScreen.hidden = true;
