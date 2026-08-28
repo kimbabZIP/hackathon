@@ -321,7 +321,7 @@
         <div class="review-stage">
           <img
             class="review-background-image"
-            src="/assignment-review-bg-v2.jpg"
+            src="/assignment-review-bg-v3.jpg"
             alt=""
             aria-hidden="true"
           />
@@ -352,6 +352,13 @@
             </label>
 
             <p class="review-form-message" role="status" aria-live="polite"></p>
+            <button
+              class="review-action-button review-previous-button"
+              type="button"
+              data-action="open-previous-assignments"
+            >
+              <span class="sr-only">이전 과제 보기</span>
+            </button>
             <button class="review-action-button review-start-button" type="submit">
               <span class="sr-only">첨삭 시작</span>
             </button>
@@ -483,6 +490,61 @@
               <span class="sr-only">강의 음성 등록 취소</span>
             </button>
           </form>
+        </div>
+      </section>
+
+      <section class="chatbot-screen" aria-label="교수 챗봇" hidden>
+        <div class="chatbot-stage">
+          <img
+            class="chatbot-background-image"
+            src="/chatbot-bg.jpg"
+            alt=""
+            aria-hidden="true"
+          />
+          <img class="chatbot-professor-image" alt="" />
+
+          <nav class="chatbot-suggestions" aria-label="추천 질문">
+            <button type="button" data-chat-suggestion="0">
+              <span class="chatbot-suggestion-text"></span>
+            </button>
+            <button type="button" data-chat-suggestion="1">
+              <span class="chatbot-suggestion-text"></span>
+            </button>
+            <button class="chatbot-direct-button" type="button" data-action="open-chatbot-input">
+              <span class="sr-only">질문 직접 입력하기</span>
+            </button>
+          </nav>
+
+          <form class="chatbot-direct-form" id="chatbot-direct-form" hidden>
+            <label class="sr-only" for="chatbot-direct-input">교수에게 직접 질문</label>
+            <input
+              id="chatbot-direct-input"
+              name="chatbotQuestion"
+              type="text"
+              maxlength="300"
+              placeholder="질문을 입력하고 Enter를 누르세요"
+              autocomplete="off"
+              required
+            />
+            <button type="submit">전송</button>
+          </form>
+
+          <p class="chatbot-professor-name"></p>
+          <p class="chatbot-answer" aria-live="polite"></p>
+          <span class="chatbot-typewriter-cursor" aria-hidden="true"></span>
+
+          <nav class="chatbot-history-controls" aria-label="대화 기록 이동">
+            <button type="button" data-action="chatbot-back" disabled>
+              <span class="sr-only">이전 대화</span>
+            </button>
+            <button type="button" data-action="chatbot-forward" disabled>
+              <span class="sr-only">다음 대화</span>
+            </button>
+          </nav>
+
+          <button class="chatbot-office-button" type="button" data-action="close-chatbot">
+            ← 교수 연구실로
+          </button>
         </div>
       </section>
 

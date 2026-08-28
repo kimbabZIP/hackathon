@@ -49,6 +49,7 @@ button {
 .review-result-screen,
 .course-material-screen,
 .lecture-audio-screen,
+.chatbot-screen,
 .closed-screen {
   position: fixed;
   inset: 0;
@@ -1070,12 +1071,10 @@ button {
 
 .office-stage {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  width: max(100vw, calc(100vh * 1.7778));
-  height: max(100vh, calc(100vw / 1.7778));
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
   overflow: hidden;
-  transform: translate(-50%, -50%);
 }
 
 .office-background-image {
@@ -1230,6 +1229,7 @@ button {
   background: rgba(12, 15, 13, 0.72);
   cursor: pointer;
   font-size: clamp(14px, 1.25vw, 18px);
+  white-space: nowrap;
 }
 
 .office-back-button:hover,
@@ -1247,12 +1247,10 @@ button {
 
 .review-stage {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  width: max(100vw, calc(100vh * 1.40274));
-  height: max(100vh, calc(100vw / 1.40274));
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
   overflow: hidden;
-  transform: translate(-50%, -50%);
 }
 
 .review-background-image {
@@ -1276,10 +1274,10 @@ button {
 
 .review-prompt-input {
   position: absolute;
-  top: 27.8%;
-  left: 34.2%;
-  width: 31.6%;
-  height: 15.4%;
+  top: 27.9%;
+  left: 34.4%;
+  width: 32.1%;
+  height: 15.8%;
   padding: 10px 12px;
   resize: none;
   border: 1px solid transparent;
@@ -1299,10 +1297,10 @@ button {
 
 .review-dropzone {
   position: absolute;
-  top: 53.5%;
-  left: 34.2%;
-  width: 31.6%;
-  height: 21.8%;
+  top: 54.3%;
+  left: 34.3%;
+  width: 32.3%;
+  height: 21.9%;
   border: 2px solid transparent;
   border-radius: 9px;
   outline: none;
@@ -1367,7 +1365,7 @@ button {
 
 .review-file-button {
   position: absolute;
-  top: 67.2%;
+  top: 67.8%;
   z-index: 2;
   height: 5.5%;
   border: 1px solid transparent;
@@ -1384,13 +1382,13 @@ button {
 }
 
 .review-pdf-button {
-  left: 36%;
-  width: 13.4%;
+  left: 36.2%;
+  width: 13.7%;
 }
 
 .review-text-button {
-  left: 50.8%;
-  width: 15.2%;
+  left: 51%;
+  width: 13.8%;
 }
 
 .review-file-button:hover,
@@ -1402,7 +1400,7 @@ button {
 
 .review-form-message {
   position: absolute;
-  top: 77.2%;
+  top: 78.4%;
   left: 34.5%;
   width: 31%;
   margin: 0;
@@ -1414,7 +1412,7 @@ button {
 
 .review-action-button {
   position: absolute;
-  top: 87%;
+  top: 88%;
   z-index: 2;
   height: 8.7%;
   border: 2px solid transparent;
@@ -1424,14 +1422,19 @@ button {
   transition: border-color 180ms ease, filter 180ms ease, box-shadow 180ms ease;
 }
 
+.review-previous-button {
+  left: 23.1%;
+  width: 16.9%;
+}
+
 .review-start-button {
-  left: 32.5%;
-  width: 16.7%;
+  left: 42%;
+  width: 17%;
 }
 
 .review-exit-button {
-  left: 50.8%;
-  width: 16.7%;
+  left: 61%;
+  width: 17.2%;
 }
 
 .review-action-button:hover,
@@ -1705,12 +1708,10 @@ button {
 
 .material-stage {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  width: max(100vw, calc(100vh * 1.40274));
-  height: max(100vh, calc(100vw / 1.40274));
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
   overflow: hidden;
-  transform: translate(-50%, -50%);
 }
 
 .material-background-image {
@@ -1862,12 +1863,10 @@ button {
 
 .audio-stage {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  width: max(100vw, calc(100vh * 1.40274));
-  height: max(100vh, calc(100vw / 1.40274));
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
   overflow: hidden;
-  transform: translate(-50%, -50%);
 }
 
 .audio-background-image {
@@ -1983,6 +1982,265 @@ button {
   border-color: rgba(245, 216, 157, 0.88);
   box-shadow: 0 0 20px rgba(238, 183, 91, 0.36);
   filter: brightness(1.12);
+}
+
+.chatbot-screen {
+  z-index: 8;
+  overflow: hidden;
+  background: #17150f;
+}
+
+.chatbot-stage {
+  position: absolute;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.chatbot-background-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.chatbot-professor-image {
+  position: absolute;
+  z-index: 1;
+  top: 5%;
+  right: -1%;
+  width: 43%;
+  height: 67%;
+  object-fit: contain;
+  object-position: center bottom;
+  filter: drop-shadow(-12px 16px 16px rgba(0, 0, 0, 0.48));
+  animation: office-professor-in 600ms ease both;
+  pointer-events: none;
+}
+
+.chatbot-suggestions {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  pointer-events: none;
+}
+
+.chatbot-suggestions button {
+  position: absolute;
+  left: 4.1%;
+  width: 57.7%;
+  height: 5.2%;
+  overflow: hidden;
+  border: 2px solid transparent;
+  border-radius: 18px;
+  color: #f2e4ca;
+  background: transparent;
+  cursor: pointer;
+  pointer-events: auto;
+  text-align: left;
+  text-shadow: 0 2px 4px #000;
+  transition: border-color 180ms ease, background-color 180ms ease, box-shadow 180ms ease;
+}
+
+.chatbot-suggestions button:nth-child(1) {
+  top: 6.2%;
+}
+
+.chatbot-suggestions button:nth-child(2) {
+  top: 11.7%;
+}
+
+.chatbot-suggestions button:nth-child(3) {
+  top: 17.2%;
+}
+
+.chatbot-suggestions button:hover,
+.chatbot-suggestions button:focus-visible {
+  outline: none;
+  border-color: rgba(235, 196, 125, 0.72);
+  background: rgba(221, 166, 79, 0.1);
+  box-shadow: 0 0 16px rgba(231, 177, 92, 0.25);
+}
+
+.chatbot-suggestion-text {
+  display: block;
+  margin-left: 5.4%;
+  overflow: hidden;
+  font-size: clamp(11px, 1.3vw, 20px);
+  line-height: 1.9;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chatbot-suggestions.is-direct-entry .chatbot-direct-button {
+  visibility: hidden;
+}
+
+.chatbot-direct-form {
+  position: absolute;
+  z-index: 5;
+  top: 17.2%;
+  left: 5.1%;
+  display: grid;
+  grid-template-columns: 1fr 8%;
+  width: 56.5%;
+  height: 5.2%;
+}
+
+.chatbot-direct-form input {
+  min-width: 0;
+  padding: 0 16px;
+  border: 1px solid rgba(230, 194, 130, 0.68);
+  border-radius: 17px 0 0 17px;
+  outline: none;
+  color: #f0dfc0;
+  background: rgba(27, 25, 21, 0.94);
+  font: clamp(10px, 1.1vw, 17px) "Noto Serif KR", serif;
+  box-shadow: inset 0 0 14px rgba(0, 0, 0, 0.48);
+}
+
+.chatbot-direct-form input:focus {
+  border-color: #efd094;
+  box-shadow: inset 0 0 14px rgba(0, 0, 0, 0.48), 0 0 13px rgba(225, 171, 84, 0.28);
+}
+
+.chatbot-direct-form button {
+  border: 1px solid rgba(230, 194, 130, 0.68);
+  border-left: 0;
+  border-radius: 0 17px 17px 0;
+  color: #f2dfba;
+  background: rgba(102, 67, 35, 0.94);
+  cursor: pointer;
+  font-size: clamp(8px, 0.8vw, 12px);
+}
+
+.chatbot-direct-form button:hover,
+.chatbot-direct-form button:focus-visible {
+  outline: none;
+  color: #fff4da;
+  background: rgba(139, 91, 43, 0.98);
+}
+
+.chatbot-professor-name {
+  position: absolute;
+  z-index: 4;
+  top: 68%;
+  left: 1.2%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 25.7%;
+  height: 6.4%;
+  margin: 0;
+  overflow: hidden;
+  color: #f0ddba;
+  font-size: clamp(12px, 1.45vw, 22px);
+  letter-spacing: 0.04em;
+  text-align: center;
+  text-overflow: ellipsis;
+  text-shadow: 0 2px 5px #000;
+  white-space: nowrap;
+}
+
+.chatbot-answer {
+  position: absolute;
+  z-index: 4;
+  top: 75.7%;
+  left: 3.1%;
+  width: 93.7%;
+  height: 18.2%;
+  margin: 0;
+  overflow: hidden;
+  color: #e9dbc0;
+  font-size: clamp(13px, 1.5vw, 22px);
+  line-height: 1.65;
+  letter-spacing: 0.015em;
+  text-shadow: 0 2px 4px #000;
+  white-space: pre-wrap;
+}
+
+.chatbot-typewriter-cursor {
+  position: absolute;
+  z-index: 5;
+  right: 3.3%;
+  bottom: 6.3%;
+  width: 7px;
+  height: 14px;
+  background: #d8ad6b;
+  box-shadow: 0 0 8px rgba(220, 169, 91, 0.76);
+  animation: typewriter-blink 600ms steps(1) infinite;
+}
+
+.chatbot-typewriter-cursor.is-idle {
+  display: none;
+}
+
+.chatbot-history-controls {
+  position: absolute;
+  z-index: 5;
+  inset: 0;
+  pointer-events: none;
+}
+
+.chatbot-history-controls button {
+  position: absolute;
+  top: 62%;
+  width: 10.8%;
+  height: 5%;
+  border: 2px solid transparent;
+  border-radius: 16px;
+  background: transparent;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: border-color 180ms ease, background-color 180ms ease, box-shadow 180ms ease;
+}
+
+.chatbot-history-controls button:first-child {
+  left: 2.6%;
+}
+
+.chatbot-history-controls button:last-child {
+  left: 14.3%;
+}
+
+.chatbot-history-controls button:not(:disabled):hover,
+.chatbot-history-controls button:not(:disabled):focus-visible {
+  outline: none;
+  border-color: rgba(239, 205, 143, 0.8);
+  background: rgba(224, 171, 86, 0.1);
+  box-shadow: 0 0 14px rgba(233, 180, 94, 0.28);
+}
+
+.chatbot-history-controls button:disabled {
+  cursor: not-allowed;
+  background: rgba(5, 5, 4, 0.42);
+  opacity: 0.52;
+}
+
+.chatbot-office-button {
+  position: absolute;
+  z-index: 6;
+  top: 2.2%;
+  right: 2%;
+  padding: 9px 15px;
+  border: 1px solid rgba(228, 197, 139, 0.52);
+  color: #e8d6b6;
+  background: rgba(30, 27, 21, 0.76);
+  cursor: pointer;
+  font-size: clamp(9px, 0.9vw, 13px);
+  text-shadow: 0 2px 3px #000;
+  white-space: nowrap;
+}
+
+.chatbot-office-button:hover,
+.chatbot-office-button:focus-visible {
+  outline: none;
+  border-color: #e2bd7b;
+  background: rgba(77, 54, 31, 0.86);
 }
 
 .feature-modal-backdrop {
@@ -2195,6 +2453,75 @@ button {
 .feature-submit-button:disabled {
   cursor: not-allowed;
   opacity: 0.42;
+}
+
+.previous-assignment-list {
+  display: grid;
+  max-height: min(540px, 65vh);
+  gap: 10px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #967649 transparent;
+}
+
+.previous-assignment-item {
+  display: grid;
+  gap: 9px;
+  width: 100%;
+  padding: 15px 17px;
+  border: 1px solid rgba(194, 171, 127, 0.28);
+  color: #d9cdb6;
+  background: rgba(5, 8, 7, 0.48);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 180ms ease, background-color 180ms ease, transform 180ms ease;
+}
+
+.previous-assignment-item:hover,
+.previous-assignment-item:focus-visible {
+  outline: none;
+  border-color: #cba66b;
+  background: rgba(118, 78, 34, 0.2);
+  transform: translateX(3px);
+}
+
+.previous-assignment-header {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.previous-assignment-header strong {
+  overflow: hidden;
+  color: #edddbf;
+  font-size: 14px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.previous-assignment-header time {
+  flex: 0 0 auto;
+  color: #988c78;
+  font-size: 10px;
+}
+
+.previous-assignment-prompt {
+  display: -webkit-box;
+  overflow: hidden;
+  color: #aea28e;
+  font-size: 11px;
+  line-height: 1.6;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.previous-assignment-empty {
+  margin: 24px 0;
+  color: #aaa08d;
+  font-size: 13px;
+  text-align: center;
 }
 
 .review-report {
