@@ -1,18 +1,3 @@
-import {
-  analyzeLectureAudio,
-  getCurrentUser,
-  getLectureMaterials,
-  getProfessors,
-  gradeAssignment,
-  loginUser,
-  logoutUser,
-  registerUser,
-  saveProfessor,
-  ScholarlyApiError,
-  sendProfessorChat,
-  uploadLectureMaterial,
-} from "./api.js";
-
 const authScreen = document.querySelector(".auth-screen");
 const titleScreen = document.querySelector(".title-screen");
 const titleImage = document.querySelector(".title-image");
@@ -59,6 +44,7 @@ let chatbotSuggestedQuestions = [];
 let chatbotReturnTarget = "office";
 const transparentProfessorImageCache = new Map();
 const mainScreenUrl = "/main-screen.jpg";
+const accountStorageKey = "assignment-review-accounts";
 const sessionStorageKey = "assignment-review-session";
 const professorCustomizationStorageKey = "assignment-review-professor-customizations";
 const reviewHistoryStorageKey = "assignment-review-history";
@@ -400,11 +386,6 @@ const defaultProfessorAges = [
   38, 72, 54, 46, 37, 67, 42, 51, 44, 69,
   48, 65, 39, 56, 47, 35, 45, 36, 52, 41,
 ];
-const professorBaseProfiles = professorProfiles.map((profile, index) => ({
-  name: profile.name,
-  department: profile.department,
-  age: defaultProfessorAges[index],
-}));
 const savedProfessorCustomizations = readProfessorCustomizations();
 
 function findProfessorAsset(assetModules, pattern) {
@@ -443,10 +424,7 @@ document.documentElement.style.setProperty("--main-screen", `url("${mainScreenUr
 
 function readProfessorCustomizations() {
   try {
-    const owner = currentUser?.id ?? "anonymous";
-    return JSON.parse(
-      localStorage.getItem(`${professorCustomizationStoragePrefix}:${owner}`),
-    ) ?? {};
+    return JSON.parse(localStorage.getItem(professorCustomizationStorageKey)) ?? {};
   } catch {
     return {};
   }
@@ -459,78 +437,27 @@ function saveProfessorCustomization(profile) {
     age: profile.age,
     department: profile.department,
   };
-  const owner = currentUser?.id ?? "anonymous";
-  localStorage.setItem(
-    `${professorCustomizationStoragePrefix}:${owner}`,
-    JSON.stringify(customizations),
-  );
+  localStorage.setItem(professorCustomizationStorageKey, JSON.stringify(customizations));
 }
 
-function apiErrorText(error, fallback) {
-  return error instanceof ScholarlyApiError ? error.message : fallback;
+function readAccounts() {
+  try {
+    return JSON.parse(localStorage.getItem(accountStorageKey)) ?? [];
+  } catch {
+    return [];
+  }
 }
 
-function beginFeatureRequest() {
-  featureRequestController?.abort();
-  featureRequestController = new AbortController();
-  return featureRequestController;
+function saveAccounts(accounts) {
+  localStorage.setItem(accountStorageKey, JSON.stringify(accounts));
 }
 
-function selectedProfessor() {
-  return professorProfiles.find((item) => item.id === selectedProfessorId);
-}
-
-function selectedServerProfessor() {
-  return serverProfessors.get(selectedProfessorId) ?? null;
-}
-
-function currentProfessorPersona(profile) {
-  const analyzed = professorPersonaProfiles.get(profile.id);
-  const analyzedDna = analyzed?.dna ?? {};
-  return {
-    professor_name: profile.name,
-    department: profile.department,
-    subject: profile.specialty,
-    summary_bio:
-      analyzed?.summary_bio ||
-      `${profile.type}. ${profile.specialty} 대표 발언: ${profile.quote}`,
-    tone_description:
-      analyzedDna.tone_description ||
-      analyzed?.tone_description ||
-      "엄격하지만 근거를 분명하게 설명하는 지도 교수의 어조",
-    sentence_endings:
-      analyzedDna.sentence_endings || analyzed?.sentence_endings || ["입니다", "하세요", "봅시다"],
-    filler_words: analyzedDna.filler_words || analyzed?.filler_words || [],
-  };
-}
-
-async function hydrateServerProfessors() {
-  const records = await getProfessors();
-  const localCustomizations = readProfessorCustomizations();
-  professorProfiles.forEach((profile, index) => {
-    const base = professorBaseProfiles[index];
-    const local = localCustomizations[profile.id];
-    profile.name = local?.name ?? base.name;
-    profile.age = local?.age ?? base.age;
-    profile.department = local?.department ?? base.department;
-    profile.customized = Boolean(local);
-  });
-  serverProfessors.clear();
-  records.forEach((record) => {
-    if (!record.template_id) return;
-    serverProfessors.set(record.template_id, record);
-    const profile = professorProfiles.find((item) => item.id === record.template_id);
-    if (!profile) return;
-    profile.name = record.name;
-    profile.age = record.age ?? profile.age;
-    profile.department = record.department;
-    profile.customized = true;
-    if (record.persona_profile) {
-      professorPersonaProfiles.set(profile.id, record.persona_profile);
-    }
-  });
-  initializeProfessorRoster();
-  renderProfessor(selectedProfessorId);
+async function hashPassword(password) {
+  const bytes = new TextEncoder().encode(password);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return [...new Uint8Array(digest)]
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
 }
 
 function setAuthMessage(form, message, success = false) {
@@ -580,10 +507,10 @@ function showAuth() {
   showAuthView("login");
 }
 
-function setSession(user) {
+function setSession(account) {
   sessionStorage.setItem(sessionStorageKey, JSON.stringify({
-    account: user.login_id,
-    name: user.display_name,
+    account: account.account,
+    name: account.name,
   }));
 }
 
@@ -602,15 +529,9 @@ function updatePlayerName() {
     : "";
 }
 
-function enterTitle(user, animate = true) {
-  currentUser = user;
-  setSession(user);
+function enterTitle(account) {
+  setSession(account);
   updatePlayerName();
-  if (!animate) {
-    authScreen.hidden = true;
-    showTitle();
-    return;
-  }
   authScreen.classList.add("is-leaving");
   transitionTimer = window.setTimeout(() => {
     authScreen.hidden = true;
@@ -886,43 +807,16 @@ function backToProfessors() {
     ?.focus({ preventScroll: true });
 }
 
-async function confirmSelection() {
-  const profile = selectedProfessor();
+function confirmSelection() {
+  const profile = professorProfiles.find((item) => item.id === selectedProfessorId);
   if (!pendingProfessorCustomization) {
     cancelSelection();
     return;
   }
 
-  const customization = pendingProfessorCustomization;
-  const confirmButton = document.querySelector(".professor-confirm");
-  const modalCopy = document.querySelector(".selection-modal-copy");
-  confirmButton.disabled = true;
-  modalCopy.textContent = "교수 프로필을 서버에 저장하고 있습니다…";
-
-  try {
-    const record = await saveProfessor({
-      template_id: profile.id,
-      name: customization.name,
-      age: customization.age,
-      department: customization.department,
-      lab_name: null,
-      specialty: profile.specialty,
-      personality_type: profile.type,
-      traits: profile.specialty,
-      representative_quote: profile.quote,
-      difficulty: profile.difficulty,
-      make_active: true,
-    });
-    serverProfessors.set(profile.id, record);
-  } catch (error) {
-    modalCopy.textContent = apiErrorText(error, "교수 프로필 저장에 실패했습니다.");
-    confirmButton.disabled = false;
-    return;
-  }
-
-  profile.name = customization.name;
-  profile.age = customization.age;
-  profile.department = customization.department;
+  profile.name = pendingProfessorCustomization.name;
+  profile.age = pendingProfessorCustomization.age;
+  profile.department = pendingProfessorCustomization.department;
   profile.customized = true;
   saveProfessorCustomization(profile);
   sessionStorage.setItem("assignment-review-professor", selectedProfessorId);
@@ -944,7 +838,6 @@ async function confirmSelection() {
   toastTimer = window.setTimeout(() => {
     selectionToast.hidden = true;
   }, 3200);
-  confirmButton.disabled = false;
   showProfessorOffice();
 }
 
@@ -1438,8 +1331,6 @@ function openFeature(feature) {
 }
 
 function closeFeature() {
-  featureRequestController?.abort();
-  featureRequestController = null;
   featureModalBackdrop.hidden = true;
   const returnTarget = !assignmentReviewScreen.hidden
     ? document.querySelector("[data-action='open-previous-assignments']")
@@ -1529,22 +1420,10 @@ function exitGame() {
   document.querySelector(".closed-screen button").focus({ preventScroll: true });
 }
 
-async function logout() {
-  try {
-    await logoutUser();
-  } catch {
-    // 쿠키가 이미 만료된 경우에도 로컬 화면은 로그인으로 되돌립니다.
-  } finally {
-    currentUser = null;
-    serverProfessors.clear();
-    professorChatHistories.clear();
-    professorLectureMaterials.clear();
-    professorPersonaProfiles.clear();
-    sessionStorage.removeItem(sessionStorageKey);
-    sessionStorage.removeItem("assignment-review-professor");
-    Object.values(authForms).forEach((form) => form.reset());
-    showAuth();
-  }
+function logout() {
+  sessionStorage.removeItem(sessionStorageKey);
+  Object.values(authForms).forEach((form) => form.reset());
+  showAuth();
 }
 
 function handleAction(action) {
@@ -1885,22 +1764,16 @@ authForms.login.addEventListener("submit", async (event) => {
   const form = event.currentTarget;
   const formData = new FormData(form);
   const accountId = formData.get("account").trim().toLowerCase();
-  const password = formData.get("password");
-  const submitButton = form.querySelector(".auth-submit");
-  submitButton.disabled = true;
-  setAuthMessage(form, "서버에서 계정을 확인하고 있습니다…", true);
+  const passwordHash = await hashPassword(formData.get("password"));
+  const account = readAccounts().find((item) => item.account === accountId);
 
-  try {
-    const user = await loginUser({ loginId: accountId, password });
-    currentUser = user;
-    await hydrateServerProfessors();
-    setAuthMessage(form, "확인되었습니다. 연구실 문을 여는 중입니다.", true);
-    enterTitle(user);
-  } catch (error) {
-    setAuthMessage(form, apiErrorText(error, "로그인에 실패했습니다."));
-  } finally {
-    submitButton.disabled = false;
+  if (!account || account.passwordHash !== passwordHash) {
+    setAuthMessage(form, "계정 또는 비밀번호가 일치하지 않습니다.");
+    return;
   }
+
+  setAuthMessage(form, "확인되었습니다. 연구실 문을 여는 중입니다.", true);
+  enterTitle(account);
 });
 
 authForms.signup.addEventListener("submit", async (event) => {
@@ -1911,35 +1784,28 @@ authForms.signup.addEventListener("submit", async (event) => {
   const accountId = formData.get("account").trim().toLowerCase();
   const password = formData.get("password");
   const passwordConfirm = formData.get("passwordConfirm");
-  const submitButton = form.querySelector(".auth-submit");
+  const accounts = readAccounts();
 
   if (password !== passwordConfirm) {
     setAuthMessage(form, "비밀번호 확인이 일치하지 않습니다.");
     return;
   }
-  if (password.length < 8) {
-    setAuthMessage(form, "비밀번호를 8자 이상 입력해 주세요.");
+
+  if (accounts.some((account) => account.account === accountId)) {
+    setAuthMessage(form, "이미 수강 명단에 등록된 계정입니다.");
     return;
   }
 
-  submitButton.disabled = true;
-  setAuthMessage(form, "수강 명단에 계정을 등록하고 있습니다…", true);
-  try {
-    const user = await registerUser({
-      loginId: accountId,
-      password,
-      displayName: name,
-      email: accountId.includes("@") ? accountId : null,
-    });
-    currentUser = user;
-    serverProfessors.clear();
-    setAuthMessage(form, "등록되었습니다. 연구실 문을 여는 중입니다.", true);
-    enterTitle(user);
-  } catch (error) {
-    setAuthMessage(form, apiErrorText(error, "회원가입에 실패했습니다."));
-  } finally {
-    submitButton.disabled = false;
-  }
+  const account = {
+    name,
+    account: accountId,
+    passwordHash: await hashPassword(password),
+  };
+
+  accounts.push(account);
+  saveAccounts(accounts);
+  setAuthMessage(form, "등록되었습니다. 연구실 문을 여는 중입니다.", true);
+  enterTitle(account);
 });
 
 document.addEventListener("keydown", (event) => {
@@ -2088,22 +1954,8 @@ initializeProfessorRoster();
 renderProfessor(selectedProfessorId);
 setSelectedMenu(0);
 
-async function bootstrapAuth() {
-  try {
-    const user = await getCurrentUser();
-    currentUser = user;
-    await hydrateServerProfessors();
-    enterTitle(user, false);
-  } catch (error) {
-    sessionStorage.removeItem(sessionStorageKey);
-    showAuth();
-    if (error instanceof ScholarlyApiError && error.status !== 401) {
-      setAuthMessage(
-        authForms.login,
-        apiErrorText(error, "로그인 서버 상태를 확인하지 못했습니다."),
-      );
-    }
-  }
+if (getSession()) {
+  showTitle();
+} else {
+  showAuth();
 }
-
-void bootstrapAuth();
