@@ -270,6 +270,20 @@ const professorProfiles = [
     quote: "이 여백은 의도입니까, 아니면 망설임입니까?",
     color: "#b47b86",
   },
+  {
+    id: "kiro",
+    name: "키로 교수",
+    department: "AI 유령공학과",
+    difficulty: 3,
+    type: "유령 조력형",
+    specialty: "보이지 않는 빈칸과 사라진 근거를 찾아 논리의 구멍을 메우게 합니다.",
+    quote: "안 보이는 부분일수록 더 정확하게 써야 합니다.",
+    color: "#8b7cc8",
+    featured: true,
+    identityLocked: true,
+    facePosition: "50% 18%",
+    heroPosition: "50% 92%",
+  },
 ];
 
 function createFallbackPortrait(profile) {
@@ -373,6 +387,13 @@ const defaultProfessorAges = [
 ];
 const savedProfessorCustomizations = readProfessorCustomizations();
 
+function findProfessorAsset(assetModules, pattern) {
+  return Object.entries(assetModules).find(([path]) => pattern.test(path))?.[1];
+}
+
+const kiroPortraitUrl = findProfessorAsset(professorAssetModules, /KIRO/i);
+const kiroFullBodyUrl = findProfessorAsset(professorFullBodyModules, /KIRO/i);
+
 professorProfiles.forEach((profile, index) => {
   const customization = savedProfessorCustomizations[profile.id];
   profile.image = professorAssetUrls[index] ?? createFallbackPortrait(profile);
@@ -380,6 +401,18 @@ professorProfiles.forEach((profile, index) => {
   profile.facePosition = profile.facePosition ?? "50% 16%";
   profile.heroPosition = profile.heroPosition ?? "50% 100%";
   profile.customized = Boolean(customization);
+
+  if (profile.identityLocked) {
+    profile.image = kiroPortraitUrl ?? profile.image;
+    profile.heroImage = kiroFullBodyUrl
+      ? `${kiroFullBodyUrl}${kiroFullBodyUrl.includes("?") ? "&" : "?"}cutout=2`
+      : profile.heroImage;
+    profile.age = 1;
+    profile.name = "키로 교수";
+    profile.department = "AI 유령공학과";
+    return;
+  }
+
   profile.age = customization?.age ?? defaultProfessorAges[index];
   profile.name = customization?.name ?? profile.name;
   profile.department = customization?.department ?? profile.department;
@@ -524,7 +557,7 @@ function initializeProfessorRoster() {
   const professorGrid = document.querySelector(".professor-grid");
   professorGrid.innerHTML = professorProfiles.map((profile, index) => `
     <button
-      class="professor-tile${sessionStorage.getItem("assignment-review-professor") === profile.id ? " is-confirmed" : ""}"
+      class="professor-tile${profile.featured ? " professor-tile-featured" : ""}${sessionStorage.getItem("assignment-review-professor") === profile.id ? " is-confirmed" : ""}"
       type="button"
       role="option"
       aria-selected="${profile.id === selectedProfessorId}"
@@ -564,6 +597,7 @@ function initializeProfessorRoster() {
 
     const tiles = [...professorGrid.querySelectorAll(".professor-tile")];
     const currentIndex = tiles.indexOf(currentTile);
+    const featuredIndex = tiles.findIndex((tile) => tile.classList.contains("professor-tile-featured"));
     const movements = {
       ArrowLeft: -1,
       ArrowRight: 1,
@@ -576,6 +610,15 @@ function initializeProfessorRoster() {
       nextIndex = 0;
     } else if (event.key === "End") {
       nextIndex = tiles.length - 1;
+    } else if (
+      featuredIndex > 0
+      && event.key === "ArrowDown"
+      && currentIndex >= featuredIndex - 4
+      && currentIndex < featuredIndex
+    ) {
+      nextIndex = featuredIndex;
+    } else if (featuredIndex > 0 && event.key === "ArrowUp" && currentIndex === featuredIndex) {
+      nextIndex = featuredIndex - 1;
     } else if (!(event.key in movements)) {
       return;
     }
@@ -666,12 +709,33 @@ function populateProfessorForm(profile, force = false) {
     return;
   }
 
+  const nameInput = form.elements.professorName;
+  const ageInput = form.elements.professorAge;
+  const departmentInput = form.elements.professorDepartment;
+
   form.dataset.professorId = profile.id;
-  form.elements.professorName.value = profile.customized
+  form.classList.toggle("is-locked-identity", Boolean(profile.identityLocked));
+  [nameInput, ageInput, departmentInput].forEach((input) => {
+    input.readOnly = Boolean(profile.identityLocked);
+  });
+
+  if (profile.identityLocked) {
+    nameInput.value = "키로";
+    ageInput.min = "1";
+    ageInput.max = "1";
+    ageInput.value = "1";
+    departmentInput.value = "AI 유령공학과";
+    document.querySelector(".submission-message").textContent = "";
+    return;
+  }
+
+  ageInput.min = "25";
+  ageInput.max = "100";
+  nameInput.value = profile.customized
     ? profile.name.replace(/\s*교수$/, "")
     : "";
-  form.elements.professorAge.value = profile.customized ? profile.age : "";
-  form.elements.professorDepartment.value = profile.customized ? profile.department : "";
+  ageInput.value = profile.customized ? profile.age : "";
+  departmentInput.value = profile.customized ? profile.department : "";
   document.querySelector(".submission-message").textContent = "";
 }
 
@@ -1422,20 +1486,27 @@ submissionForm.addEventListener("input", () => {
 submissionForm.addEventListener("submit", (event) => {
   event.preventDefault();
   const formData = new FormData(event.currentTarget);
+  const selectedProfile = professorProfiles.find((item) => item.id === selectedProfessorId);
   const rawName = formData.get("professorName").trim();
-  const customization = {
-    name: rawName.endsWith("교수") ? rawName : `${rawName} 교수`,
-    age: Number(formData.get("professorAge")),
-    department: formData.get("professorDepartment").trim(),
-  };
+  const customization = selectedProfile?.identityLocked
+    ? {
+      name: "키로 교수",
+      age: 1,
+      department: "AI 유령공학과",
+    }
+    : {
+      name: rawName.endsWith("교수") ? rawName : `${rawName} 교수`,
+      age: Number(formData.get("professorAge")),
+      department: formData.get("professorDepartment").trim(),
+    };
 
-  if (!rawName || !customization.department) {
+  if (!customization.name || !customization.department) {
     document.querySelector(".submission-message").textContent =
       "교수 이름과 소속 학과를 정확히 입력해 주세요.";
     return;
   }
 
-  if (customization.age < 25 || customization.age > 100) {
+  if (!selectedProfile?.identityLocked && (customization.age < 25 || customization.age > 100)) {
     document.querySelector(".submission-message").textContent =
       "교수 나이는 25세부터 100세 사이로 입력해 주세요.";
     return;

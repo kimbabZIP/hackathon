@@ -700,9 +700,10 @@ button {
 }
 
 .professor-grid {
+  --roster-gap: clamp(8px, 1vw, 14px);
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: clamp(8px, 1vw, 14px);
+  gap: var(--roster-gap);
   flex: 1;
   min-height: 0;
   padding: 3px;
@@ -788,6 +789,32 @@ button {
 .professor-tile.is-selected img {
   filter: saturate(1);
   transform: scale(1.48);
+}
+
+.professor-tile-featured {
+  grid-column: 1 / -1;
+  width: calc((100% - 3 * var(--roster-gap)) / 4 * 1.38);
+  justify-self: center;
+  margin-top: clamp(6px, 1vh, 12px);
+  background: #121410;
+}
+
+.professor-tile-featured img {
+  mix-blend-mode: normal;
+  filter: saturate(0.92) brightness(1.02);
+  transform: scale(1.06);
+  transform-origin: center 20%;
+}
+
+.professor-tile-featured:hover img,
+.professor-tile-featured:focus-visible img,
+.professor-tile-featured.is-selected img {
+  filter: saturate(1) brightness(1.06);
+  transform: scale(1.1);
+}
+
+.professor-tile-featured .tile-number {
+  font-size: 11px;
 }
 
 .tile-number {
@@ -1022,6 +1049,17 @@ button {
 .submission-fields input:focus {
   border-color: var(--selected-accent);
   box-shadow: 0 0 12px color-mix(in srgb, var(--selected-accent) 12%, transparent);
+}
+
+.submission-form.is-locked-identity .submission-fields input {
+  color: #d7cba8;
+  background: rgba(18, 20, 18, 0.72);
+  cursor: default;
+}
+
+.submission-form.is-locked-identity .submission-fields input:focus {
+  border-color: rgba(181, 169, 145, 0.4);
+  box-shadow: none;
 }
 
 .department-field {
@@ -3181,6 +3219,10 @@ button {
 
   .professor-tile {
     max-height: 145px;
+  }
+
+  .professor-tile-featured {
+    max-height: 196px;
   }
 
   .roster-guide {
