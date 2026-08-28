@@ -80,6 +80,7 @@ class LineEdit(BaseModel):
     original: str
     revised: str
     reason: str
+    lecture_evidence: str = ""
 
 
 class FeedbackReport(BaseModel):
@@ -93,6 +94,8 @@ class FeedbackReport(BaseModel):
     misconceptions: list[str]
     line_edits: list[LineEdit]
     improved_example: str
+    student_submission: str = ""
+    lecture_summary: str = ""
     engine: str = "local"
     caution: str = "자동 첨삭 결과는 교수자의 최종 판단을 보조하는 자료입니다."
 

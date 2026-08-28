@@ -47,10 +47,14 @@ def test_three_examples_exist() -> None:
 
 
 def test_local_engine_detects_misconceptions() -> None:
-    report = asyncio.run(LocalFeedbackEngine().grade(_request(1)))
+    request = _request(1)
+    report = asyncio.run(LocalFeedbackEngine().grade(request))
     assert report.total_score <= 65
     assert len(report.misconceptions) >= 2
     assert sum(x.max_score for x in report.criteria) == 100
+    assert report.student_submission == request.student_submission
+    assert report.lecture_summary == request.lecture_summary
+    assert all(edit.lecture_evidence for edit in report.line_edits)
 
 
 def test_strong_example_scores_above_incomplete() -> None:

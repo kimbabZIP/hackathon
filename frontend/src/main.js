@@ -18,6 +18,7 @@ import {
   uploadLectureMaterial,
 } from "./api.js";
 import { prepareAudioForUpload } from "./audioPreprocessor.js";
+import { renderAnnotatedText } from "./reviewAnnotations.js";
 
 const authScreen = document.querySelector(".auth-screen");
 const titleScreen = document.querySelector(".title-screen");
@@ -1113,6 +1114,62 @@ function backToReviewForm() {
   document.querySelector(".review-prompt-input").focus({ preventScroll: true });
 }
 
+function showFeedbackInspector(editIndex) {
+  const edit = lastReviewReport?.line_edits?.[editIndex];
+  const buttons = [...document.querySelectorAll(".submission-annotation")];
+  buttons.forEach((button) => {
+    const active = Number(button.dataset.editIndex) === editIndex;
+    button.classList.toggle("is-active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+
+  const original = document.querySelector(".feedback-inspector-original");
+  const reason = document.querySelector(".feedback-inspector-reason");
+  const revised = document.querySelector(".feedback-inspector-revised");
+  const evidence = document.querySelector(".feedback-inspector-evidence");
+  if (!edit) {
+    original.textContent = "밑줄 친 문장을 선택해 주세요.";
+    reason.textContent = "선택한 문장의 피드백 이유가 여기에 표시됩니다.";
+    revised.textContent = "수정 제안이 여기에 표시됩니다.";
+    evidence.textContent = "강의자료 근거가 여기에 표시됩니다.";
+    return;
+  }
+
+  original.textContent = edit.original;
+  reason.textContent = edit.reason || "이 문장에 대한 구체적인 피드백 이유가 제공되지 않았습니다.";
+  revised.textContent = edit.revised || "수정 제안이 제공되지 않았습니다.";
+  evidence.textContent = edit.lecture_evidence
+    || lastReviewReport.lecture_summary?.slice(0, 700)
+    || "연결된 강의자료 근거가 없습니다.";
+}
+
+function renderAnnotatedSubmission(report) {
+  const container = document.querySelector(".report-submission-text");
+  const unmatchedMessage = document.querySelector(".report-unmatched-feedback");
+  const source = report.student_submission?.trim() || "";
+  container.replaceChildren();
+  unmatchedMessage.hidden = true;
+  unmatchedMessage.textContent = "";
+
+  if (!source) {
+    container.textContent = "이전 형식으로 저장된 첨삭 결과에는 제출 원문이 포함되어 있지 않습니다.";
+    showFeedbackInspector(-1);
+    return;
+  }
+
+  const { matchedEditIndices, unmatchedCount } = renderAnnotatedText({
+    source,
+    lineEdits: report.line_edits,
+    container,
+    onSelect: showFeedbackInspector,
+  });
+  if (unmatchedCount) {
+    unmatchedMessage.hidden = false;
+    unmatchedMessage.textContent = `원문 위치를 확인하지 못한 피드백 ${unmatchedCount}개는 밑줄에서 제외했습니다.`;
+  }
+  showFeedbackInspector(matchedEditIndices[0] ?? 0);
+}
+
 function openReviewReport() {
   const profile = selectedProfessor();
   const request = JSON.parse(sessionStorage.getItem("assignment-review-request") ?? "{}");
@@ -1131,6 +1188,7 @@ function openReviewReport() {
     `${report.grade} · ${report.total_score}점`;
   document.querySelector(".report-document-engine").textContent = report.engine;
   document.querySelector(".report-document-comment").textContent = lastReviewComment;
+  renderAnnotatedSubmission(report);
 
   const scoreChart = document.querySelector(".report-score-chart");
   scoreChart.replaceChildren();
@@ -1195,6 +1253,14 @@ function downloadReviewReport() {
     "",
     "개선 예시",
     reportData.improved_example,
+    "",
+    "문장별 피드백",
+    ...reportData.line_edits.flatMap((edit, index) => [
+      `${index + 1}. ${edit.original}`,
+      `   이유: ${edit.reason}`,
+      `   수정안: ${edit.revised}`,
+      `   강의자료 근거: ${edit.lecture_evidence || "제공되지 않음"}`,
+    ]),
   ].join("\n");
   const url = URL.createObjectURL(new Blob([report], { type: "text/plain;charset=utf-8" }));
   const link = document.createElement("a");

@@ -485,6 +485,40 @@
               <p class="report-document-comment"></p>
             </section>
 
+            <section class="report-submission-section">
+              <div class="report-section-heading">
+                <h2>제출 과제 피드백</h2>
+                <p>밑줄 친 문장을 선택하면 강의자료에 근거한 피드백을 확인할 수 있습니다.</p>
+              </div>
+              <div class="report-annotation-layout">
+                <div
+                  class="report-submission-text"
+                  role="document"
+                  tabindex="0"
+                  aria-label="피드백 밑줄이 표시된 제출 과제 원문"
+                ></div>
+                <aside class="report-feedback-inspector" aria-live="polite">
+                  <p class="feedback-inspector-kicker">선택한 피드백</p>
+                  <blockquote class="feedback-inspector-original"></blockquote>
+                  <dl>
+                    <div>
+                      <dt>왜 피드백을 받았나요?</dt>
+                      <dd class="feedback-inspector-reason"></dd>
+                    </div>
+                    <div>
+                      <dt>이렇게 고쳐보세요</dt>
+                      <dd class="feedback-inspector-revised"></dd>
+                    </div>
+                    <div class="feedback-inspector-evidence-row">
+                      <dt>강의자료 근거</dt>
+                      <dd class="feedback-inspector-evidence"></dd>
+                    </div>
+                  </dl>
+                </aside>
+              </div>
+              <p class="report-unmatched-feedback" hidden></p>
+            </section>
+
             <section>
               <h2>항목별 평가</h2>
               <div class="report-score-chart" aria-label="첨삭 항목별 점수"></div>
