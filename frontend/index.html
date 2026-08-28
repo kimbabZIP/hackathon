@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="깐깐한 교수님에게 과제 피드백을 받는 비주얼 노벨 시뮬레이터"
+    />
+    <title>잔혹 과제 피드백</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <main id="app">
+      <section class="auth-screen" aria-label="로그인 및 회원가입">
+        <div class="auth-background" aria-hidden="true"></div>
+        <div class="auth-shade" aria-hidden="true"></div>
+        <div class="film-grain auth-grain" aria-hidden="true"></div>
+
+        <div class="auth-panel">
+          <div class="auth-brand">
+            <p>ASSIGNMENT REVIEW SIMULATOR</p>
+            <h1>잔혹 과제 피드백</h1>
+            <span>교수님의 연구실에 들어가기 전에 신원을 확인합니다.</span>
+          </div>
+
+          <div class="auth-tabs" role="tablist" aria-label="계정 메뉴">
+            <button
+              class="auth-tab is-active"
+              id="login-tab"
+              type="button"
+              role="tab"
+              aria-selected="true"
+              aria-controls="login-form"
+              data-action="show-login"
+            >
+              로그인
+            </button>
+            <button
+              class="auth-tab"
+              id="signup-tab"
+              type="button"
+              role="tab"
+              aria-selected="false"
+              aria-controls="signup-form"
+              data-action="show-signup"
+            >
+              회원가입
+            </button>
+          </div>
+
+          <form class="auth-form" id="login-form" aria-labelledby="login-tab">
+            <label>
+              <span>학번 또는 이메일</span>
+              <input
+                name="account"
+                type="text"
+                autocomplete="username"
+                placeholder="계정을 입력하세요"
+                required
+              />
+            </label>
+            <label>
+              <span>비밀번호</span>
+              <input
+                name="password"
+                type="password"
+                autocomplete="current-password"
+                placeholder="비밀번호를 입력하세요"
+                required
+              />
+            </label>
+            <p class="auth-message" role="status" aria-live="polite"></p>
+            <button class="auth-submit" type="submit">연구실로 들어가기</button>
+            <button class="auth-switch" type="button" data-action="show-signup">
+              아직 계정이 없습니까? <strong>회원가입</strong>
+            </button>
+          </form>
+
+          <form class="auth-form" id="signup-form" aria-labelledby="signup-tab" hidden>
+            <label>
+              <span>이름</span>
+              <input
+                name="name"
+                type="text"
+                autocomplete="name"
+                maxlength="20"
+                placeholder="교수님께 불릴 이름"
+                required
+              />
+            </label>
+            <label>
+              <span>학번 또는 이메일</span>
+              <input
+                name="account"
+                type="text"
+                autocomplete="username"
+                placeholder="사용할 계정을 입력하세요"
+                required
+              />
+            </label>
+            <label>
+              <span>비밀번호</span>
+              <input
+                name="password"
+                type="password"
+                autocomplete="new-password"
+                minlength="6"
+                placeholder="6자 이상 입력하세요"
+                required
+              />
+            </label>
+            <label>
+              <span>비밀번호 확인</span>
+              <input
+                name="passwordConfirm"
+                type="password"
+                autocomplete="new-password"
+                minlength="6"
+                placeholder="비밀번호를 다시 입력하세요"
+                required
+              />
+            </label>
+            <p class="auth-message" role="status" aria-live="polite"></p>
+            <button class="auth-submit" type="submit">수강 명단에 등록하기</button>
+            <button class="auth-switch" type="button" data-action="show-login">
+              이미 계정이 있습니까? <strong>로그인</strong>
+            </button>
+          </form>
+        </div>
+      </section>
+
+      <section class="title-screen" aria-label="게임 메인 화면" hidden>
+        <div class="title-stage" aria-hidden="true">
+          <img class="title-image" alt="" />
+          <div class="film-grain"></div>
+          <div class="vignette"></div>
+        </div>
+
+        <nav class="title-menu" aria-label="메인 메뉴">
+          <button class="menu-hitbox start-hitbox" type="button" data-action="start">
+            <span class="sr-only">게임 시작</span>
+          </button>
+          <button class="menu-hitbox exit-hitbox" type="button" data-action="exit">
+            <span class="sr-only">게임 종료</span>
+          </button>
+        </nav>
+
+        <p class="keyboard-hint">↑↓ 선택 · Enter 확인</p>
+        <div class="player-menu">
+          <span class="player-name"></span>
+          <button type="button" data-action="logout">로그아웃</button>
+        </div>
+      </section>
+
+      <section class="intro-screen" aria-label="게임 시작" hidden>
+        <div class="intro-background"></div>
+        <div class="intro-vignette"></div>
+        <div class="chapter-card">
+          <p class="chapter-date">4월 8일 · 월요일</p>
+          <div class="chapter-rule"></div>
+          <h1>교수 연구실 앞</h1>
+          <p class="chapter-copy">
+            수정본을 제출한 지 사흘째.<br />
+            교수님에게서 단 한 줄의 메일이 도착했다.
+          </p>
+          <blockquote>“과제 들고 연구실로 오세요.”</blockquote>
+          <button class="continue-button" type="button" data-action="continue">
+            <span>교수실에 들어간다</span>
+          </button>
+          <button class="back-button" type="button" data-action="back">
+            메인 화면으로
+          </button>
+        </div>
+      </section>
+
+      <section class="professor-select-screen" aria-label="지도 교수 선택" hidden>
+        <div class="select-background" aria-hidden="true"></div>
+        <div class="select-atmosphere" aria-hidden="true"></div>
+        <div class="film-grain select-grain" aria-hidden="true"></div>
+
+        <header class="select-header">
+          <div>
+            <h1>지도 교수를 선택하십시오</h1>
+          </div>
+          <div class="select-header-actions">
+            <button class="select-back" type="button" data-action="back-to-intro">
+              ← 연구실 앞으로
+            </button>
+          </div>
+        </header>
+
+        <div class="professor-select-layout">
+          <aside class="professor-roster" aria-label="교수 목록">
+            <div class="roster-heading">
+              <span>교수진 명단</span>
+              <strong class="roster-count">01 / 20</strong>
+            </div>
+            <div class="professor-grid" role="listbox" aria-label="선택 가능한 지도 교수"></div>
+            <div class="roster-guide">
+              <span class="guide-mark"></span>
+              <p>얼굴을 선택해<br />담당 교수를 확인하십시오.</p>
+            </div>
+          </aside>
+
+          <article class="professor-detail" aria-live="polite">
+            <div class="professor-visual">
+              <div class="visual-seal">교수<br />자료</div>
+              <img class="professor-hero" alt="" />
+              <div class="hero-loading">교수 자료 열람 중…</div>
+              <div class="hero-gradient"></div>
+            </div>
+
+            <div class="professor-profile">
+              <div class="profile-index">
+                <span class="profile-number">01</span>
+                <span class="profile-total">/ 20</span>
+              </div>
+
+              <form class="submission-form" id="submission-form">
+                <div class="submission-heading">
+                  <strong>교수 정보 설정</strong>
+                </div>
+                <div class="submission-fields">
+                  <label>
+                    <span>교수 이름</span>
+                    <input
+                      name="professorName"
+                      type="text"
+                      maxlength="20"
+                      placeholder="교수 이름"
+                      required
+                    />
+                  </label>
+                  <label>
+                    <span>교수 나이</span>
+                    <input
+                      name="professorAge"
+                      type="number"
+                      min="25"
+                      max="100"
+                      inputmode="numeric"
+                      placeholder="나이"
+                      required
+                    />
+                  </label>
+                  <label class="department-field">
+                    <span>소속 학과</span>
+                    <input
+                      name="professorDepartment"
+                      type="text"
+                      maxlength="30"
+                      placeholder="교수의 소속 학과"
+                      required
+                    />
+                  </label>
+                </div>
+                <p class="submission-message" role="status" aria-live="polite"></p>
+                <button class="select-professor-button" type="submit">
+                  <span>교수 정보 저장하고 선택하기</span>
+                  <b>→</b>
+                </button>
+              </form>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <div class="selection-modal-backdrop" hidden>
+        <div
+          class="selection-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="selection-modal-title"
+        >
+          <h2 id="selection-modal-title"></h2>
+          <span class="selection-modal-copy"></span>
+          <div class="modal-actions">
+            <button class="modal-button cancel" type="button" data-action="cancel-selection">
+              다시 고르기
+            </button>
+            <button class="modal-button professor-confirm" type="button" data-action="confirm-selection">
+              이 교수로 선택하기
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="selection-toast" role="status" aria-live="polite" hidden>
+        <strong class="toast-professor-name"></strong>
+        <span>교수 정보가 저장되고 선택되었습니다.</span>
+      </div>
+
+      <div class="modal-backdrop" hidden>
+        <div
+          class="exit-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="exit-title"
+          aria-describedby="exit-description"
+        >
+          <p class="modal-kicker">수업을 빠지시겠습니까?</p>
+          <h2 id="exit-title">정말 종료할까요?</h2>
+          <p id="exit-description">진행 중인 내용은 저장되지 않습니다.</p>
+          <div class="modal-actions">
+            <button class="modal-button cancel" type="button" data-action="cancel-exit">
+              돌아가기
+            </button>
+            <button class="modal-button confirm" type="button" data-action="confirm-exit">
+              종료
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="closed-screen" hidden>
+        <p>게임을 종료했습니다.</p>
+        <button type="button" data-action="reopen">다시 시작</button>
+      </div>
+    </main>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
