@@ -1,3 +1,8 @@
+import introBgmUrl from "../bgm/leze_clip.mp3";
+import professorSelectBgmUrl from "../bgm/PUBG_BGM.mp3";
+import officeBgmUrl from "../bgm/miyoeonsiBGM.mp3";
+import buttonSfxUrl from "../bgm/button.mp3";
+import characterSfxUrl from "../bgm/character.mp3";
 import {
   analyzeLectureAudio,
   getCurrentUser,
@@ -39,6 +44,90 @@ const authForms = {
   signup: document.querySelector("#signup-form"),
 };
 
+const introBgm = createLoopingBgm(introBgmUrl);
+const professorSelectBgm = createLoopingBgm(professorSelectBgmUrl);
+const officeBgm = createLoopingBgm(officeBgmUrl);
+const loopingBgmTracks = [introBgm, professorSelectBgm, officeBgm];
+let lastHoverSfxTarget = null;
+
+function createLoopingBgm(url) {
+  const audio = new Audio(url);
+  audio.loop = true;
+  audio.preload = "auto";
+  audio.volume = 0.42;
+  audio.addEventListener("ended", () => {
+    audio.currentTime = 0;
+    audio.play().catch(() => {});
+  });
+  return audio;
+}
+
+function playBgm(track) {
+  loopingBgmTracks.forEach((item) => {
+    if (item !== track) {
+      stopBgm(item);
+    }
+  });
+  if (!track.paused) {
+    return;
+  }
+  track.play().catch(() => {});
+}
+
+function stopBgm(track) {
+  track.pause();
+  track.currentTime = 0;
+}
+
+function stopAllBgm() {
+  loopingBgmTracks.forEach(stopBgm);
+}
+
+function playIntroBgm() {
+  playBgm(introBgm);
+}
+
+function playProfessorSelectBgm() {
+  playBgm(professorSelectBgm);
+}
+
+function playOfficeBgm() {
+  playBgm(officeBgm);
+}
+
+function stopProfessorSelectBgm() {
+  stopBgm(professorSelectBgm);
+}
+
+function isOfficeFlowVisible() {
+  return !professorOfficeScreen.hidden
+    || !assignmentReviewScreen.hidden
+    || !previousAssignmentsScreen.hidden
+    || !reviewResultScreen.hidden
+    || !reviewReportScreen.hidden
+    || !courseMaterialScreen.hidden
+    || !lectureAudioScreen.hidden
+    || !chatbotScreen.hidden;
+}
+
+function playSfx(url, volume = 0.72) {
+  const sfx = new Audio(url);
+  sfx.volume = volume;
+  sfx.play().catch(() => {});
+}
+
+function playHoverTick() {
+  playSfx(buttonSfxUrl, 0.55);
+}
+
+function playClickSfx() {
+  playSfx(buttonSfxUrl, 0.8);
+}
+
+function playConfirmSfx() {
+  playSfx(characterSfxUrl, 0.85);
+}
+
 let currentUser = null;
 let featureRequestController = null;
 let selectedMenuIndex = 0;
@@ -72,6 +161,7 @@ const professorLectureMaterials = new Map();
 const professorPersonaProfiles = new Map();
 const transparentProfessorImageCache = new Map();
 const mainScreenUrl = "/main-screen.jpg";
+const accountStorageKey = "assignment-review-accounts";
 const sessionStorageKey = "assignment-review-session";
 const professorCustomizationStoragePrefix = "assignment-review-professor-customizations";
 const reviewHistoryStorageKey = "assignment-review-history";
@@ -413,11 +503,6 @@ const defaultProfessorAges = [
   38, 72, 54, 46, 37, 67, 42, 51, 44, 69,
   48, 65, 39, 56, 47, 35, 45, 36, 52, 41,
 ];
-const professorBaseProfiles = professorProfiles.map((profile, index) => ({
-  name: profile.name,
-  department: profile.department,
-  age: defaultProfessorAges[index],
-}));
 const savedProfessorCustomizations = readProfessorCustomizations();
 
 function findProfessorAsset(assetModules, pattern) {
@@ -456,10 +541,7 @@ document.documentElement.style.setProperty("--main-screen", `url("${mainScreenUr
 
 function readProfessorCustomizations() {
   try {
-    const owner = currentUser?.id ?? "anonymous";
-    return JSON.parse(
-      localStorage.getItem(`${professorCustomizationStoragePrefix}:${owner}`),
-    ) ?? {};
+    return JSON.parse(localStorage.getItem(professorCustomizationStorageKey)) ?? {};
   } catch {
     return {};
   }
@@ -472,31 +554,27 @@ function saveProfessorCustomization(profile) {
     age: profile.age,
     department: profile.department,
   };
-  const owner = currentUser?.id ?? "anonymous";
-  localStorage.setItem(
-    `${professorCustomizationStoragePrefix}:${owner}`,
-    JSON.stringify(customizations),
-  );
+  localStorage.setItem(professorCustomizationStorageKey, JSON.stringify(customizations));
 }
 
-function apiErrorText(error, fallback) {
-  return error instanceof ScholarlyApiError ? error.message : fallback;
+function readAccounts() {
+  try {
+    return JSON.parse(localStorage.getItem(accountStorageKey)) ?? [];
+  } catch {
+    return [];
+  }
 }
 
-function beginFeatureRequest() {
-  featureRequestController?.abort();
-  featureRequestController = new AbortController();
-  return featureRequestController;
+function saveAccounts(accounts) {
+  localStorage.setItem(accountStorageKey, JSON.stringify(accounts));
 }
 
-function selectedProfessor() {
-  return professorProfiles.find((item) => item.id === selectedProfessorId);
-}
-
-function selectedServerProfessor() {
-  return serverProfessors.get(selectedProfessorId) ?? null;
-}
-
+async function hashPassword(password) {
+  const bytes = new TextEncoder().encode(password);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return [...new Uint8Array(digest)]
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
 function normalizePersonaList(value, fallback = []) {
   const source = Array.isArray(value) ? value : fallback;
   return [...new Set(
@@ -615,13 +693,14 @@ function showAuth() {
   selectionToast.hidden = true;
   authScreen.hidden = false;
   authScreen.classList.remove("is-leaving");
+  playIntroBgm();
   showAuthView("login");
 }
 
-function setSession(user) {
+function setSession(account) {
   sessionStorage.setItem(sessionStorageKey, JSON.stringify({
-    account: user.login_id,
-    name: user.display_name,
+    account: account.account,
+    name: account.name,
   }));
 }
 
@@ -640,15 +719,9 @@ function updatePlayerName() {
     : "";
 }
 
-function enterTitle(user, animate = true) {
-  currentUser = user;
-  setSession(user);
+function enterTitle(account) {
+  setSession(account);
   updatePlayerName();
-  if (!animate) {
-    authScreen.hidden = true;
-    showTitle();
-    return;
-  }
   authScreen.classList.add("is-leaving");
   transitionTimer = window.setTimeout(() => {
     authScreen.hidden = true;
@@ -704,7 +777,12 @@ function initializeProfessorRoster() {
       professorHoverTimer = window.setTimeout(() => renderProfessor(professorId), 90);
     });
     tile.addEventListener("focus", () => renderProfessor(professorId));
-    tile.addEventListener("click", () => renderProfessor(professorId));
+    tile.addEventListener("click", () => {
+      playClickSfx();
+      professorSelectionLocked = true;
+      window.clearTimeout(professorHoverTimer);
+      renderProfessor(professorId);
+    });
   });
 
   professorGrid.addEventListener("keydown", (event) => {
@@ -813,6 +891,7 @@ function renderProfessor(professorId) {
 }
 
 function backToIntro() {
+  playIntroBgm();
   professorSelectScreen.hidden = true;
   introScreen.hidden = false;
   requestAnimationFrame(() => {
@@ -879,6 +958,8 @@ function showProfessorOffice() {
     return;
   }
 
+  playOfficeBgm();
+
   document.querySelector(".office-professor-image").src = profile.heroImage;
   document.querySelector(".office-professor-image").alt = `${profile.name} 전신`;
   document.querySelector(".office-professor-name").textContent = profile.name;
@@ -913,48 +994,22 @@ function backToProfessors() {
   chatbotScreen.hidden = true;
   professorOfficeScreen.hidden = true;
   professorSelectScreen.hidden = false;
+  playProfessorSelectBgm();
   renderProfessor(selectedProfessorId);
   document.querySelector(`[data-professor-id="${selectedProfessorId}"]`)
     ?.focus({ preventScroll: true });
 }
 
-async function confirmSelection() {
-  const profile = selectedProfessor();
+function confirmSelection() {
+  const profile = professorProfiles.find((item) => item.id === selectedProfessorId);
   if (!pendingProfessorCustomization) {
     cancelSelection();
     return;
   }
 
-  const customization = pendingProfessorCustomization;
-  const confirmButton = document.querySelector(".professor-confirm");
-  const modalCopy = document.querySelector(".selection-modal-copy");
-  confirmButton.disabled = true;
-  modalCopy.textContent = "교수 프로필을 서버에 저장하고 있습니다…";
-
-  try {
-    const record = await saveProfessor({
-      template_id: profile.id,
-      name: customization.name,
-      age: customization.age,
-      department: customization.department,
-      lab_name: null,
-      specialty: profile.specialty,
-      personality_type: profile.type,
-      traits: profile.specialty,
-      representative_quote: profile.quote,
-      difficulty: profile.difficulty,
-      make_active: true,
-    });
-    serverProfessors.set(profile.id, record);
-  } catch (error) {
-    modalCopy.textContent = apiErrorText(error, "교수 프로필 저장에 실패했습니다.");
-    confirmButton.disabled = false;
-    return;
-  }
-
-  profile.name = customization.name;
-  profile.age = customization.age;
-  profile.department = customization.department;
+  profile.name = pendingProfessorCustomization.name;
+  profile.age = pendingProfessorCustomization.age;
+  profile.department = pendingProfessorCustomization.department;
   profile.customized = true;
   saveProfessorCustomization(profile);
   sessionStorage.setItem("assignment-review-professor", selectedProfessorId);
@@ -976,7 +1031,6 @@ async function confirmSelection() {
   toastTimer = window.setTimeout(() => {
     selectionToast.hidden = true;
   }, 3200);
-  confirmButton.disabled = false;
   showProfessorOffice();
 }
 
@@ -1710,8 +1764,6 @@ function openFeature(feature) {
 }
 
 function closeFeature() {
-  featureRequestController?.abort();
-  featureRequestController = null;
   featureModalBackdrop.hidden = true;
   const returnTarget = !assignmentReviewScreen.hidden
     ? document.querySelector("[data-action='open-previous-assignments']")
@@ -1723,6 +1775,7 @@ function closeFeature() {
 
 function showTitle() {
   window.clearTimeout(transitionTimer);
+  playIntroBgm();
   authScreen.hidden = true;
   introScreen.hidden = true;
   introScreen.classList.remove("is-visible");
@@ -1766,6 +1819,7 @@ function continueGame() {
   transitionTimer = window.setTimeout(() => {
     introScreen.hidden = true;
     professorSelectScreen.hidden = false;
+    playProfessorSelectBgm();
     renderProfessor(selectedProfessorId);
     document.querySelector(`[data-professor-id="${selectedProfessorId}"]`)
       ?.focus({ preventScroll: true });
@@ -1784,6 +1838,7 @@ function closeExitModal() {
 
 function exitGame() {
   modalBackdrop.hidden = true;
+  stopAllBgm();
   titleScreen.hidden = true;
   introScreen.hidden = true;
   professorSelectScreen.hidden = true;
@@ -1801,22 +1856,10 @@ function exitGame() {
   document.querySelector(".closed-screen button").focus({ preventScroll: true });
 }
 
-async function logout() {
-  try {
-    await logoutUser();
-  } catch {
-    // 쿠키가 이미 만료된 경우에도 로컬 화면은 로그인으로 되돌립니다.
-  } finally {
-    currentUser = null;
-    serverProfessors.clear();
-    professorChatHistories.clear();
-    professorLectureMaterials.clear();
-    professorPersonaProfiles.clear();
-    sessionStorage.removeItem(sessionStorageKey);
-    sessionStorage.removeItem("assignment-review-professor");
-    Object.values(authForms).forEach((form) => form.reset());
-    showAuth();
-  }
+function logout() {
+  sessionStorage.removeItem(sessionStorageKey);
+  Object.values(authForms).forEach((form) => form.reset());
+  showAuth();
 }
 
 function handleAction(action) {
@@ -1854,6 +1897,27 @@ function handleAction(action) {
 
   actions[action]?.();
 }
+
+document.addEventListener("pointerover", (event) => {
+  const target = event.target.closest("button");
+  if (!target || target.disabled || target === lastHoverSfxTarget) {
+    return;
+  }
+
+  lastHoverSfxTarget = target;
+  playHoverTick();
+});
+
+document.addEventListener("pointerout", (event) => {
+  const target = event.target.closest("button");
+  if (!target || target.contains(event.relatedTarget)) {
+    return;
+  }
+
+  if (lastHoverSfxTarget === target) {
+    lastHoverSfxTarget = null;
+  }
+});
 
 document.addEventListener("click", (event) => {
   const featureTarget = event.target.closest("[data-feature]");
@@ -1914,6 +1978,7 @@ submissionForm.addEventListener("submit", (event) => {
   }
 
   document.querySelector(".submission-message").textContent = "";
+  playConfirmSfx();
   openSelectionModal(customization);
 });
 
@@ -2302,31 +2367,16 @@ authForms.login.addEventListener("submit", async (event) => {
   const form = event.currentTarget;
   const formData = new FormData(form);
   const accountId = formData.get("account").trim().toLowerCase();
-  const password = formData.get("password");
-  const submitButton = form.querySelector(".auth-submit");
-  submitButton.disabled = true;
-  setAuthMessage(form, "서버에서 계정을 확인하고 있습니다…", true);
+  const passwordHash = await hashPassword(formData.get("password"));
+  const account = readAccounts().find((item) => item.account === accountId);
 
-  let user;
-  try {
-    user = await loginUser({ loginId: accountId, password });
-  } catch (error) {
-    setAuthMessage(form, apiErrorText(error, "로그인에 실패했습니다."));
-    submitButton.disabled = false;
+  if (!account || account.passwordHash !== passwordHash) {
+    setAuthMessage(form, "계정 또는 비밀번호가 일치하지 않습니다.");
     return;
   }
 
-  try {
-    currentUser = user;
-    await hydrateServerProfessorsSafely();
-    setAuthMessage(form, "확인되었습니다. 연구실 문을 여는 중입니다.", true);
-    enterTitle(user);
-  } catch (error) {
-    console.error("로그인 후 화면 초기화에 실패했습니다.", error);
-    setAuthMessage(form, "로그인은 완료됐지만 화면을 열지 못했습니다. 새로고침해 주세요.");
-  } finally {
-    submitButton.disabled = false;
-  }
+  setAuthMessage(form, "확인되었습니다. 연구실 문을 여는 중입니다.", true);
+  enterTitle(account);
 });
 
 authForms.signup.addEventListener("submit", async (event) => {
@@ -2337,35 +2387,28 @@ authForms.signup.addEventListener("submit", async (event) => {
   const accountId = formData.get("account").trim().toLowerCase();
   const password = formData.get("password");
   const passwordConfirm = formData.get("passwordConfirm");
-  const submitButton = form.querySelector(".auth-submit");
+  const accounts = readAccounts();
 
   if (password !== passwordConfirm) {
     setAuthMessage(form, "비밀번호 확인이 일치하지 않습니다.");
     return;
   }
-  if (password.length < 8) {
-    setAuthMessage(form, "비밀번호를 8자 이상 입력해 주세요.");
+
+  if (accounts.some((account) => account.account === accountId)) {
+    setAuthMessage(form, "이미 수강 명단에 등록된 계정입니다.");
     return;
   }
 
-  submitButton.disabled = true;
-  setAuthMessage(form, "수강 명단에 계정을 등록하고 있습니다…", true);
-  try {
-    const user = await registerUser({
-      loginId: accountId,
-      password,
-      displayName: name,
-      email: accountId.includes("@") ? accountId : null,
-    });
-    currentUser = user;
-    serverProfessors.clear();
-    setAuthMessage(form, "등록되었습니다. 연구실 문을 여는 중입니다.", true);
-    enterTitle(user);
-  } catch (error) {
-    setAuthMessage(form, apiErrorText(error, "회원가입에 실패했습니다."));
-  } finally {
-    submitButton.disabled = false;
-  }
+  const account = {
+    name,
+    account: accountId,
+    passwordHash: await hashPassword(password),
+  };
+
+  accounts.push(account);
+  saveAccounts(accounts);
+  setAuthMessage(form, "등록되었습니다. 연구실 문을 여는 중입니다.", true);
+  enterTitle(account);
 });
 
 document.addEventListener("keydown", (event) => {
@@ -2525,4 +2568,20 @@ async function bootstrapAuth() {
   }
 }
 
-void bootstrapAuth();
+const unlockBgmPlayback = () => {
+  if (!professorSelectScreen.hidden) {
+    playProfessorSelectBgm();
+    return;
+  }
+  if (isOfficeFlowVisible()) {
+    playOfficeBgm();
+    return;
+  }
+  if (!authScreen.hidden || !titleScreen.hidden || !introScreen.hidden) {
+    playIntroBgm();
+  }
+};
+
+["pointerdown", "keydown"].forEach((eventName) => {
+  document.addEventListener(eventName, unlockBgmPlayback, { once: true });
+});
