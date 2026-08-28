@@ -3,9 +3,11 @@ const titleScreen = document.querySelector(".title-screen");
 const titleImage = document.querySelector(".title-image");
 const introScreen = document.querySelector(".intro-screen");
 const professorSelectScreen = document.querySelector(".professor-select-screen");
+const professorOfficeScreen = document.querySelector(".professor-office-screen");
 const modalBackdrop = document.querySelector(".modal-backdrop");
 const selectionModalBackdrop = document.querySelector(".selection-modal-backdrop");
 const selectionToast = document.querySelector(".selection-toast");
+const featureModalBackdrop = document.querySelector(".feature-modal-backdrop");
 const closedScreen = document.querySelector(".closed-screen");
 const menuButtons = [...document.querySelectorAll(".menu-hitbox")];
 const authTabs = [...document.querySelectorAll(".auth-tab")];
@@ -29,13 +31,23 @@ const professorAssetModules = import.meta.glob(
   "/assets/professors/*.{png,jpg,jpeg,webp,avif,PNG,JPG,JPEG,WEBP,AVIF}",
   { eager: true, query: "?url", import: "default" },
 );
-const professorAssetUrls = Object.entries(professorAssetModules)
+const professorFullBodyModules = import.meta.glob(
+  "/assets/professors_every/*.{png,jpg,jpeg,webp,avif,PNG,JPG,JPEG,WEBP,AVIF}",
+  { eager: true, query: "?url", import: "default" },
+);
+
+function sortProfessorAssets(assetModules) {
+  return Object.entries(assetModules)
   .sort(([pathA], [pathB]) => {
     const numberA = Number(pathA.match(/\d+/)?.[0] ?? Number.MAX_SAFE_INTEGER);
     const numberB = Number(pathB.match(/\d+/)?.[0] ?? Number.MAX_SAFE_INTEGER);
     return numberA - numberB;
   })
   .map(([, url]) => url);
+}
+
+const professorAssetUrls = sortProfessorAssets(professorAssetModules);
+const professorFullBodyUrls = sortProfessorAssets(professorFullBodyModules);
 
 const professorProfiles = [
   {
@@ -267,8 +279,9 @@ const savedProfessorCustomizations = readProfessorCustomizations();
 professorProfiles.forEach((profile, index) => {
   const customization = savedProfessorCustomizations[profile.id];
   profile.image = professorAssetUrls[index] ?? createFallbackPortrait(profile);
+  profile.heroImage = professorFullBodyUrls[index] ?? profile.image;
   profile.facePosition = profile.facePosition ?? "50% 16%";
-  profile.heroPosition = profile.heroPosition ?? "50% 12%";
+  profile.heroPosition = profile.heroPosition ?? "50% 100%";
   profile.customized = Boolean(customization);
   profile.age = customization?.age ?? defaultProfessorAges[index];
   profile.name = customization?.name ?? profile.name;
@@ -345,9 +358,11 @@ function showAuth() {
   titleScreen.hidden = true;
   introScreen.hidden = true;
   professorSelectScreen.hidden = true;
+  professorOfficeScreen.hidden = true;
   closedScreen.hidden = true;
   modalBackdrop.hidden = true;
   selectionModalBackdrop.hidden = true;
+  featureModalBackdrop.hidden = true;
   selectionToast.hidden = true;
   authScreen.hidden = false;
   authScreen.classList.remove("is-leaving");
@@ -405,7 +420,7 @@ function initializeProfessorRoster() {
   const professorGrid = document.querySelector(".professor-grid");
   professorGrid.innerHTML = professorProfiles.map((profile, index) => `
     <button
-      class="professor-tile"
+      class="professor-tile${sessionStorage.getItem("assignment-review-professor") === profile.id ? " is-confirmed" : ""}"
       type="button"
       role="option"
       aria-selected="${profile.id === selectedProfessorId}"
@@ -508,10 +523,10 @@ function renderProfessor(professorId) {
       if (requestId !== heroRequestId) {
         return;
       }
-      hero.src = profile.image;
+      hero.src = profile.heroImage;
       hero.alt = profile.customized
-        ? `${profile.name} 상반신`
-        : `교수 후보 ${String(profileIndex + 1).padStart(2, "0")} 상반신`;
+        ? `${profile.name} 전신`
+        : `교수 후보 ${String(profileIndex + 1).padStart(2, "0")} 전신`;
       hero.style.objectPosition = profile.heroPosition;
       hero.dataset.professorId = professorId;
       hero.classList.remove("is-switching");
@@ -528,7 +543,7 @@ function renderProfessor(professorId) {
       hero.classList.remove("is-switching");
       loading.hidden = true;
     };
-    preload.src = profile.image;
+    preload.src = profile.heroImage;
   }
 }
 
@@ -572,6 +587,33 @@ function cancelSelection() {
   document.querySelector(".select-professor-button").focus({ preventScroll: true });
 }
 
+function showProfessorOffice() {
+  const profile = professorProfiles.find((item) => item.id === selectedProfessorId);
+  if (!profile?.customized) {
+    return;
+  }
+
+  document.querySelector(".office-professor-image").src = profile.heroImage;
+  document.querySelector(".office-professor-image").alt = `${profile.name} 전신`;
+  document.querySelector(".office-professor-name").textContent = profile.name;
+  document.querySelector(".office-professor-age").textContent = `${profile.age}세`;
+  document.querySelector(".office-professor-department").textContent = profile.department;
+
+  professorSelectScreen.hidden = true;
+  featureModalBackdrop.hidden = true;
+  professorOfficeScreen.hidden = false;
+  document.querySelector("[data-feature='chat']").focus({ preventScroll: true });
+}
+
+function backToProfessors() {
+  featureModalBackdrop.hidden = true;
+  professorOfficeScreen.hidden = true;
+  professorSelectScreen.hidden = false;
+  renderProfessor(selectedProfessorId);
+  document.querySelector(`[data-professor-id="${selectedProfessorId}"]`)
+    ?.focus({ preventScroll: true });
+}
+
 function confirmSelection() {
   const profile = professorProfiles.find((item) => item.id === selectedProfessorId);
   if (!pendingProfessorCustomization) {
@@ -587,6 +629,9 @@ function confirmSelection() {
   sessionStorage.setItem("assignment-review-professor", selectedProfessorId);
   selectionModalBackdrop.hidden = true;
   const selectedTile = document.querySelector(`[data-professor-id="${selectedProfessorId}"]`);
+  document.querySelectorAll(".professor-tile").forEach((tile) => {
+    tile.classList.toggle("is-confirmed", tile === selectedTile);
+  });
   selectedTile.querySelector(".tile-info strong").textContent = profile.name.replace(/\s*교수$/, "");
   selectedTile.querySelector("img").alt = profile.name;
   document.querySelector(".professor-hero").alt = `${profile.name} 상반신`;
@@ -600,6 +645,130 @@ function confirmSelection() {
   toastTimer = window.setTimeout(() => {
     selectionToast.hidden = true;
   }, 3200);
+  showProfessorOffice();
+}
+
+const uploadFeatureSettings = {
+  review: {
+    title: "과제 첨삭",
+    guide: "첨삭받을 과제 파일을 선택해 주세요.",
+    accept: ".pdf,.doc,.docx,.hwp,.txt",
+    button: "첨삭 요청하기",
+  },
+  material: {
+    title: "강의 자료 업로드",
+    guide: "교수의 참고 자료로 사용할 강의 자료를 등록해 주세요.",
+    accept: ".pdf,.ppt,.pptx,.doc,.docx,.hwp,.txt",
+    button: "강의 자료 등록하기",
+  },
+  audio: {
+    title: "강의 음성 업로드",
+    guide: "녹음된 강의 음성 파일을 등록해 주세요.",
+    accept: "audio/*",
+    button: "강의 음성 등록하기",
+  },
+};
+
+function openFeature(feature) {
+  const profile = professorProfiles.find((item) => item.id === selectedProfessorId);
+  const title = document.querySelector("#feature-modal-title");
+  const content = document.querySelector(".feature-modal-content");
+
+  if (feature === "chat") {
+    title.textContent = "교수 챗봇";
+    content.innerHTML = `
+      <div class="chat-workspace">
+        <div class="chat-log" aria-live="polite">
+          <div class="chat-message professor-message"></div>
+        </div>
+        <form class="chat-form">
+          <label class="sr-only" for="chat-input">교수에게 보낼 메시지</label>
+          <textarea id="chat-input" rows="2" maxlength="500" placeholder="교수에게 질문을 입력하세요" required></textarea>
+          <button type="submit">전송</button>
+        </form>
+      </div>
+    `;
+    content.querySelector(".professor-message").textContent =
+      `${profile.name}입니다. 과제에 관해 궁금한 점을 질문하세요.`;
+    content.querySelector(".chat-form").addEventListener("submit", handleChatSubmit);
+  } else {
+    const settings = uploadFeatureSettings[feature];
+    if (!settings) {
+      return;
+    }
+    title.textContent = settings.title;
+    content.innerHTML = `
+      <form class="feature-upload-form">
+        <p class="upload-guide"></p>
+        <label class="upload-dropzone" tabindex="0">
+          <input type="file" accept="${settings.accept}" required />
+          <strong>파일 선택</strong>
+          <span>파일을 클릭해서 불러오세요</span>
+        </label>
+        <p class="upload-file-name" role="status">선택된 파일이 없습니다.</p>
+        <button class="feature-submit-button" type="submit" disabled></button>
+        <p class="feature-result" role="status" aria-live="polite"></p>
+      </form>
+    `;
+    content.querySelector(".upload-guide").textContent = settings.guide;
+    content.querySelector(".feature-submit-button").textContent = settings.button;
+    setupUploadForm(content.querySelector(".feature-upload-form"), settings.title);
+  }
+
+  featureModalBackdrop.hidden = false;
+  requestAnimationFrame(() => {
+    content.querySelector("textarea, .upload-dropzone, button")?.focus({ preventScroll: true });
+  });
+}
+
+function handleChatSubmit(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const input = form.querySelector("textarea");
+  const chatLog = form.closest(".chat-workspace").querySelector(".chat-log");
+  const userMessage = document.createElement("div");
+  userMessage.className = "chat-message user-message";
+  userMessage.textContent = input.value.trim();
+  chatLog.append(userMessage);
+  input.value = "";
+  chatLog.scrollTop = chatLog.scrollHeight;
+
+  window.setTimeout(() => {
+    const profile = professorProfiles.find((item) => item.id === selectedProfessorId);
+    const response = document.createElement("div");
+    response.className = "chat-message professor-message";
+    response.textContent =
+      `${profile.name}: 질문을 확인했습니다. 백엔드가 연결되면 과제와 강의 자료를 바탕으로 답변하겠습니다.`;
+    chatLog.append(response);
+    chatLog.scrollTop = chatLog.scrollHeight;
+  }, 450);
+}
+
+function setupUploadForm(form, featureTitle) {
+  const input = form.querySelector("input[type='file']");
+  const fileName = form.querySelector(".upload-file-name");
+  const submitButton = form.querySelector(".feature-submit-button");
+  const result = form.querySelector(".feature-result");
+
+  input.addEventListener("change", () => {
+    const file = input.files[0];
+    fileName.textContent = file ? file.name : "선택된 파일이 없습니다.";
+    submitButton.disabled = !file;
+    result.textContent = "";
+  });
+
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    if (!input.files[0]) {
+      return;
+    }
+    result.textContent = `${featureTitle} 준비가 완료되었습니다. 백엔드 연결 후 서버에 저장됩니다.`;
+  });
+}
+
+function closeFeature() {
+  featureModalBackdrop.hidden = true;
+  document.querySelector(`[data-feature]`)?.focus({ preventScroll: true });
 }
 
 function showTitle() {
@@ -608,7 +777,9 @@ function showTitle() {
   introScreen.hidden = true;
   introScreen.classList.remove("is-visible");
   professorSelectScreen.hidden = true;
+  professorOfficeScreen.hidden = true;
   selectionModalBackdrop.hidden = true;
+  featureModalBackdrop.hidden = true;
   selectionToast.hidden = true;
   closedScreen.hidden = true;
   titleScreen.hidden = false;
@@ -659,6 +830,7 @@ function exitGame() {
   titleScreen.hidden = true;
   introScreen.hidden = true;
   professorSelectScreen.hidden = true;
+  professorOfficeScreen.hidden = true;
   closedScreen.hidden = false;
 
   window.close();
@@ -683,6 +855,8 @@ function handleAction(action) {
     "show-login": () => showAuthView("login"),
     "show-signup": () => showAuthView("signup"),
     "back-to-intro": backToIntro,
+    "back-to-professors": backToProfessors,
+    "close-feature": closeFeature,
     "cancel-selection": cancelSelection,
     "confirm-selection": confirmSelection,
     logout,
@@ -692,6 +866,12 @@ function handleAction(action) {
 }
 
 document.addEventListener("click", (event) => {
+  const featureTarget = event.target.closest("[data-feature]");
+  if (featureTarget) {
+    openFeature(featureTarget.dataset.feature);
+    return;
+  }
+
   const actionTarget = event.target.closest("[data-action]");
   if (actionTarget) {
     handleAction(actionTarget.dataset.action);
@@ -783,6 +963,14 @@ authForms.signup.addEventListener("submit", async (event) => {
 });
 
 document.addEventListener("keydown", (event) => {
+  if (!featureModalBackdrop.hidden) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeFeature();
+    }
+    return;
+  }
+
   if (!selectionModalBackdrop.hidden) {
     if (event.key === "Escape") {
       event.preventDefault();
@@ -822,6 +1010,12 @@ document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && !professorSelectScreen.hidden) {
     event.preventDefault();
     backToIntro();
+    return;
+  }
+
+  if (event.key === "Escape" && !professorOfficeScreen.hidden) {
+    event.preventDefault();
+    backToProfessors();
     return;
   }
 

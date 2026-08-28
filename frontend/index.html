@@ -266,6 +266,77 @@
         </div>
       </section>
 
+      <section class="professor-office-screen" aria-label="교수 연구실" hidden>
+        <div class="office-stage">
+          <img
+            class="office-background-image"
+            src="/professor-office-bg.jpg"
+            alt=""
+            aria-hidden="true"
+          />
+          <div class="office-shade" aria-hidden="true"></div>
+          <img class="office-professor-image" alt="" />
+
+          <aside class="office-professor-profile">
+            <h2>교수 프로필</h2>
+            <div class="office-profile-rule"></div>
+            <dl>
+              <div>
+                <dt>이름</dt>
+                <dd class="office-professor-name"></dd>
+              </div>
+              <div>
+                <dt>나이</dt>
+                <dd class="office-professor-age"></dd>
+              </div>
+              <div>
+                <dt>학과</dt>
+                <dd class="office-professor-department"></dd>
+              </div>
+            </dl>
+          </aside>
+
+          <nav class="office-feature-menu" aria-label="주요 기능">
+            <button type="button" data-feature="chat">
+              <span class="sr-only">챗봇 기능</span>
+            </button>
+            <button type="button" data-feature="review">
+              <span class="sr-only">과제 첨삭</span>
+            </button>
+            <button type="button" data-feature="material">
+              <span class="sr-only">강의 자료 업로드</span>
+            </button>
+            <button type="button" data-feature="audio">
+              <span class="sr-only">강의 음성 업로드</span>
+            </button>
+          </nav>
+
+          <button class="office-back-button" type="button" data-action="back-to-professors">
+            ← 교수 다시 선택
+          </button>
+        </div>
+      </section>
+
+      <div class="feature-modal-backdrop" hidden>
+        <section
+          class="feature-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="feature-modal-title"
+        >
+          <header>
+            <div>
+              <p class="feature-modal-kicker">교수 연구실</p>
+              <h2 id="feature-modal-title"></h2>
+            </div>
+            <button class="feature-close-button" type="button" data-action="close-feature" aria-label="닫기">
+              ×
+            </button>
+          </header>
+          <div class="feature-modal-content"></div>
+        </section>
+      </div>
+
       <div class="selection-modal-backdrop" hidden>
         <div
           class="selection-modal"

@@ -44,6 +44,7 @@ button {
 .title-screen,
 .intro-screen,
 .professor-select-screen,
+.professor-office-screen,
 .closed-screen {
   position: fixed;
   inset: 0;
@@ -754,6 +755,16 @@ button {
   opacity: 1;
 }
 
+.professor-tile.is-confirmed {
+  border-color: #c64b4b;
+  box-shadow: none;
+}
+
+.professor-tile.is-confirmed::before {
+  border-color: #c64b4b;
+  opacity: 1;
+}
+
 .professor-tile img {
   width: 100%;
   height: 100%;
@@ -867,18 +878,18 @@ button {
   width: 100%;
   height: 100%;
   object-fit: contain;
-  object-position: center center;
-  mix-blend-mode: multiply;
+  object-position: center bottom;
+  mix-blend-mode: normal;
   filter: drop-shadow(0 28px 24px rgba(0, 0, 0, 0.52));
   opacity: 1;
-  transform: translateY(3%) scale(1.18);
+  transform: scale(1.02);
   transform-origin: center bottom;
   transition: opacity 220ms ease, transform 420ms ease;
 }
 
 .professor-hero.is-switching {
   opacity: 0;
-  transform: translateX(15px) scale(1.12);
+  transform: translateX(15px) scale(0.98);
 }
 
 .hero-gradient {
@@ -1045,6 +1056,406 @@ button {
   color: var(--selected-accent);
   font-family: Georgia, serif;
   font-weight: 400;
+}
+
+.professor-office-screen {
+  z-index: 6;
+  overflow: hidden;
+  background: #0b0e0c;
+}
+
+.office-stage {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: max(100vw, calc(100vh * 1.7778));
+  height: max(100vh, calc(100vw / 1.7778));
+  overflow: hidden;
+  transform: translate(-50%, -50%);
+}
+
+.office-background-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.office-shade {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 72% 48%, rgba(234, 192, 122, 0.08), transparent 29%),
+    linear-gradient(90deg, transparent 0 24%, rgba(5, 8, 7, 0.12) 38%, rgba(4, 7, 6, 0.42) 100%);
+  pointer-events: none;
+}
+
+.office-professor-image {
+  position: absolute;
+  z-index: 1;
+  right: 2.5%;
+  bottom: -1%;
+  width: 49%;
+  height: 94%;
+  object-fit: contain;
+  object-position: center bottom;
+  filter: drop-shadow(-12px 16px 17px rgba(0, 0, 0, 0.5));
+  animation: office-professor-in 650ms ease both;
+}
+
+.office-professor-profile {
+  position: absolute;
+  z-index: 3;
+  top: 8.2%;
+  left: 3.8%;
+  width: 20.8%;
+  height: 42.5%;
+  padding: 4.2% 2.1% 2%;
+  color: #e8dcc4;
+  text-align: center;
+}
+
+.office-professor-profile h2 {
+  margin: 0;
+  font-size: clamp(12px, 1.35vw, 22px);
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-shadow: 0 2px 6px #000;
+}
+
+.office-profile-rule {
+  position: relative;
+  width: 70%;
+  height: 1px;
+  margin: 7% auto 9%;
+  background: linear-gradient(90deg, transparent, #b89762, transparent);
+}
+
+.office-profile-rule::after {
+  content: "◇";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  color: #b89762;
+  font-size: clamp(7px, 0.7vw, 11px);
+  transform: translate(-50%, -52%);
+}
+
+.office-professor-profile dl {
+  display: grid;
+  gap: clamp(6px, 1.2vh, 13px);
+  margin: 0;
+}
+
+.office-professor-profile dl > div {
+  display: grid;
+  grid-template-columns: 34% 1fr;
+  gap: 4%;
+  align-items: start;
+  text-align: left;
+}
+
+.office-professor-profile dt {
+  color: #9b907f;
+  font-size: clamp(8px, 0.8vw, 12px);
+}
+
+.office-professor-profile dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: #eee2c9;
+  font-size: clamp(8px, 0.9vw, 14px);
+  line-height: 1.45;
+}
+
+.office-feature-menu {
+  position: absolute;
+  z-index: 4;
+  inset: 0;
+  pointer-events: none;
+}
+
+.office-feature-menu button {
+  position: absolute;
+  left: 5.1%;
+  width: 18.2%;
+  height: 7.9%;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: border-color 180ms ease, background-color 180ms ease, box-shadow 180ms ease;
+}
+
+.office-feature-menu button:nth-child(1) {
+  top: 59.7%;
+}
+
+.office-feature-menu button:nth-child(2) {
+  top: 68.8%;
+}
+
+.office-feature-menu button:nth-child(3) {
+  top: 77.9%;
+}
+
+.office-feature-menu button:nth-child(4) {
+  top: 87%;
+}
+
+.office-feature-menu button:hover,
+.office-feature-menu button:focus-visible {
+  outline: none;
+  border-color: rgba(239, 207, 147, 0.78);
+  background: rgba(210, 162, 86, 0.08);
+  box-shadow: 0 0 20px rgba(222, 174, 98, 0.2), inset 0 0 16px rgba(231, 190, 119, 0.06);
+}
+
+.office-back-button {
+  position: absolute;
+  z-index: 5;
+  top: 2.4%;
+  right: 2%;
+  padding: 8px 12px;
+  border: 1px solid rgba(209, 183, 135, 0.34);
+  color: rgba(231, 216, 186, 0.74);
+  background: rgba(12, 15, 13, 0.72);
+  cursor: pointer;
+  font-size: clamp(8px, 0.75vw, 11px);
+}
+
+.office-back-button:hover,
+.office-back-button:focus-visible {
+  outline: none;
+  border-color: #c7a66c;
+  color: #f0e2c5;
+}
+
+.feature-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(3, 6, 5, 0.76);
+  backdrop-filter: blur(8px);
+  animation: fade-in 220ms ease;
+}
+
+.feature-modal {
+  width: min(680px, 100%);
+  max-height: min(720px, calc(100vh - 40px));
+  overflow: hidden;
+  border: 1px solid rgba(208, 179, 126, 0.48);
+  background:
+    linear-gradient(145deg, rgba(29, 31, 25, 0.98), rgba(12, 16, 14, 0.98));
+  box-shadow: 0 30px 100px #000;
+}
+
+.feature-modal > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 22px 25px;
+  border-bottom: 1px solid rgba(202, 177, 130, 0.24);
+}
+
+.feature-modal-kicker {
+  margin: 0 0 4px;
+  color: #8e805f;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+}
+
+.feature-modal h2 {
+  margin: 0;
+  color: #f0e4cb;
+  font-size: 24px;
+  font-weight: 500;
+}
+
+.feature-close-button {
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(194, 171, 126, 0.3);
+  color: #b9ab90;
+  background: transparent;
+  cursor: pointer;
+  font-size: 22px;
+}
+
+.feature-close-button:hover,
+.feature-close-button:focus-visible {
+  outline: none;
+  border-color: #c4a46d;
+  color: #f0dfbd;
+}
+
+.feature-modal-content {
+  padding: 25px;
+}
+
+.chat-workspace {
+  display: grid;
+  grid-template-rows: minmax(260px, 46vh) auto;
+  gap: 15px;
+}
+
+.chat-log {
+  padding: 18px;
+  overflow-y: auto;
+  border: 1px solid rgba(190, 174, 142, 0.2);
+  background: rgba(3, 6, 5, 0.48);
+}
+
+.chat-message {
+  width: fit-content;
+  max-width: 82%;
+  margin-bottom: 12px;
+  padding: 11px 14px;
+  color: #ded4bf;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.professor-message {
+  border-left: 2px solid #bd945a;
+  background: rgba(139, 100, 50, 0.16);
+}
+
+.user-message {
+  margin-left: auto;
+  border-right: 2px solid #6b9e9e;
+  background: rgba(60, 112, 112, 0.18);
+}
+
+.chat-form {
+  display: grid;
+  grid-template-columns: 1fr 90px;
+  gap: 10px;
+}
+
+.chat-form textarea {
+  min-height: 62px;
+  padding: 12px;
+  resize: vertical;
+  border: 1px solid rgba(190, 174, 142, 0.28);
+  outline: none;
+  color: #ece1c9;
+  background: rgba(5, 8, 7, 0.7);
+  font: 13px "Noto Serif KR", serif;
+}
+
+.chat-form textarea:focus {
+  border-color: #b9945b;
+}
+
+.chat-form button,
+.feature-submit-button {
+  border: 1px solid #947448;
+  color: #e8d8b8;
+  background: rgba(118, 82, 38, 0.28);
+  cursor: pointer;
+}
+
+.chat-form button:hover,
+.chat-form button:focus-visible,
+.feature-submit-button:hover,
+.feature-submit-button:focus-visible {
+  outline: none;
+  border-color: #d0aa6e;
+  background: rgba(143, 98, 43, 0.38);
+}
+
+.feature-upload-form {
+  display: grid;
+  gap: 16px;
+}
+
+.upload-guide {
+  margin: 0;
+  color: #aba292;
+  font-size: 13px;
+}
+
+.upload-dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 190px;
+  padding: 25px;
+  border: 1px dashed rgba(205, 180, 132, 0.48);
+  color: #9d9586;
+  background: rgba(5, 8, 7, 0.45);
+  cursor: pointer;
+  text-align: center;
+}
+
+.upload-dropzone:hover,
+.upload-dropzone:focus-within {
+  border-color: #c5a46c;
+  background: rgba(118, 82, 38, 0.08);
+}
+
+.upload-dropzone input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.upload-dropzone strong,
+.upload-dropzone span {
+  display: block;
+}
+
+.upload-dropzone strong {
+  color: #eadbbd;
+  font-size: 17px;
+  font-weight: 500;
+}
+
+.upload-dropzone span {
+  font-size: 11px;
+}
+
+.upload-file-name,
+.feature-result {
+  min-height: 18px;
+  margin: 0;
+  color: #aaa08d;
+  font-size: 11px;
+}
+
+.feature-result {
+  color: #aeb77f;
+}
+
+.feature-submit-button {
+  min-height: 46px;
+}
+
+.feature-submit-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+@keyframes office-professor-in {
+  from {
+    opacity: 0;
+    transform: translateX(28px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 .selection-modal-backdrop {
