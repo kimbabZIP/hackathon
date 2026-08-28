@@ -1,0 +1,152 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --color-primary: #04162e;
+    --color-primary-container: #1a2b44;
+    --color-primary-fixed: #d5e3ff;
+    --color-primary-fixed-dim: #b6c7e7;
+    --color-secondary: #775a19;
+    --color-secondary-container: #fed488;
+    --color-secondary-fixed: #ffdea5;
+    --color-secondary-fixed-dim: #e9c176;
+    --color-surface: #fff8f2;
+    --color-surface-container: #f6ede0;
+    --color-surface-container-high: #f0e7da;
+    --color-surface-variant: #eae1d5;
+    --color-on-primary: #ffffff;
+    --color-on-surface: #1f1b14;
+    --color-on-surface-variant: #44474d;
+    --color-outline: #75777e;
+    --color-outline-variant: #c5c6ce;
+  }
+
+  body {
+    font-family: 'Hanken Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
+    background-color: #fff8f2;
+    color: #1f1b14;
+  }
+}
+
+.font-speaker-name {
+  font-family: 'Libre Caslon Text', Georgia, serif;
+}
+
+.font-dialogue-text {
+  font-family: 'Literata', Georgia, serif;
+}
+
+.font-headline {
+  font-family: 'Libre Caslon Text', Georgia, serif;
+}
+
+.font-ui-label {
+  font-family: 'Hanken Grotesk', sans-serif;
+}
+
+.font-button-text {
+  font-family: 'Hanken Grotesk', sans-serif;
+}
+
+/* Glassmorphism Panels */
+.glass-panel-title {
+  background: rgba(255, 248, 242, 0.12);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 222, 165, 0.3);
+}
+
+.glass-panel-light {
+  background-color: rgba(255, 248, 242, 0.95);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid #ffdea5;
+  box-shadow: 0 10px 30px rgba(4, 22, 46, 0.1);
+}
+
+.glass-panel-dialogue {
+  background: rgba(4, 22, 46, 0.88);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid #775a19;
+}
+
+.glass-panel-status {
+  background: rgba(246, 237, 224, 0.88);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid #e9c176;
+}
+
+/* Gold Corner Accents */
+.gold-filigree {
+  position: absolute;
+  width: 28px;
+  height: 28px;
+  border: 2px solid #ffdea5;
+  opacity: 0.8;
+  pointer-events: none;
+}
+
+.filigree-tl { top: -2px; left: -2px; border-right: none; border-bottom: none; }
+.filigree-tr { top: -2px; right: -2px; border-left: none; border-bottom: none; }
+.filigree-bl { bottom: -2px; left: -2px; border-right: none; border-top: none; }
+.filigree-br { bottom: -2px; right: -2px; border-left: none; border-top: none; }
+
+/* Custom Scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(234, 225, 213, 0.5);
+  border-radius: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #e9c176;
+  border-radius: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #775a19;
+}
+
+/* Ink Tube animations */
+.ink-bar-container {
+  position: relative;
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid #c5c6ce;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.text-shadow-elegant {
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
+}
+
+.text-shadow-title {
+  text-shadow: 0 4px 16px rgba(0, 0, 0, 0.7);
+}
+
+/* Keep the title-screen ambience without revealing the bright page background. */
+@keyframes title-background-pulse {
+  0%, 100% {
+    filter: brightness(0.88);
+    transform: scale(1.05);
+  }
+  50% {
+    filter: brightness(0.96);
+    transform: scale(1.06);
+  }
+}
+
+.title-background-pulse {
+  animation: title-background-pulse 10s ease-in-out infinite;
+  will-change: filter, transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .title-background-pulse {
+    animation: none;
+    filter: brightness(0.92);
+    transform: scale(1.05);
+  }
+}

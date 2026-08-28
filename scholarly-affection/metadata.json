@@ -1,0 +1,6 @@
+{
+  "name": "Scholarly Affection",
+  "description": "학문적 애정 (Scholarly Affection) - 지도 교수와의 지적인 교감, 과제 첨삭, 강의 분석 및 비주얼 노벨 시뮬레이션 웹 애플리케이션",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
