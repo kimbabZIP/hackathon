@@ -4,6 +4,10 @@ const titleImage = document.querySelector(".title-image");
 const introScreen = document.querySelector(".intro-screen");
 const professorSelectScreen = document.querySelector(".professor-select-screen");
 const professorOfficeScreen = document.querySelector(".professor-office-screen");
+const assignmentReviewScreen = document.querySelector(".assignment-review-screen");
+const reviewResultScreen = document.querySelector(".review-result-screen");
+const courseMaterialScreen = document.querySelector(".course-material-screen");
+const lectureAudioScreen = document.querySelector(".lecture-audio-screen");
 const modalBackdrop = document.querySelector(".modal-backdrop");
 const selectionModalBackdrop = document.querySelector(".selection-modal-backdrop");
 const selectionToast = document.querySelector(".selection-toast");
@@ -23,6 +27,13 @@ let professorHoverTimer;
 let toastTimer;
 let heroRequestId = 0;
 let pendingProfessorCustomization = null;
+let reviewFile = null;
+let materialFile = null;
+let audioFile = null;
+let typewriterTimer;
+let lastReviewComment = "";
+let resultProfessorRequestId = 0;
+const transparentProfessorImageCache = new Map();
 const mainScreenUrl = "/main-screen.jpg";
 const accountStorageKey = "assignment-review-accounts";
 const sessionStorageKey = "assignment-review-session";
@@ -270,6 +281,83 @@ function createFallbackPortrait(profile) {
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 }
 
+function loadImage(url) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = reject;
+    image.src = url;
+  });
+}
+
+async function getTransparentProfessorImage(url) {
+  if (transparentProfessorImageCache.has(url)) {
+    return transparentProfessorImageCache.get(url);
+  }
+
+  const processing = (async () => {
+    const image = await loadImage(url);
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    canvas.width = image.naturalWidth;
+    canvas.height = image.naturalHeight;
+    context.drawImage(image, 0, 0);
+
+    const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+    const pixels = imageData.data;
+    const pixelCount = canvas.width * canvas.height;
+    const visited = new Uint8Array(pixelCount);
+    const queue = new Int32Array(pixelCount);
+    let queueStart = 0;
+    let queueEnd = 0;
+
+    const isWhiteBackground = (pixelIndex) => {
+      const offset = pixelIndex * 4;
+      const red = pixels[offset];
+      const green = pixels[offset + 1];
+      const blue = pixels[offset + 2];
+      return red > 222 && green > 222 && blue > 222
+        && Math.max(red, green, blue) - Math.min(red, green, blue) < 32;
+    };
+
+    const enqueue = (pixelIndex) => {
+      if (!visited[pixelIndex] && isWhiteBackground(pixelIndex)) {
+        visited[pixelIndex] = 1;
+        queue[queueEnd] = pixelIndex;
+        queueEnd += 1;
+      }
+    };
+
+    for (let x = 0; x < canvas.width; x += 1) {
+      enqueue(x);
+      enqueue((canvas.height - 1) * canvas.width + x);
+    }
+    for (let y = 0; y < canvas.height; y += 1) {
+      enqueue(y * canvas.width);
+      enqueue(y * canvas.width + canvas.width - 1);
+    }
+
+    while (queueStart < queueEnd) {
+      const pixelIndex = queue[queueStart];
+      queueStart += 1;
+      pixels[pixelIndex * 4 + 3] = 0;
+      const x = pixelIndex % canvas.width;
+      const y = Math.floor(pixelIndex / canvas.width);
+      if (x > 0) enqueue(pixelIndex - 1);
+      if (x < canvas.width - 1) enqueue(pixelIndex + 1);
+      if (y > 0) enqueue(pixelIndex - canvas.width);
+      if (y < canvas.height - 1) enqueue(pixelIndex + canvas.width);
+    }
+
+    context.putImageData(imageData, 0, 0);
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+    return URL.createObjectURL(blob);
+  })().catch(() => url);
+
+  transparentProfessorImageCache.set(url, processing);
+  return processing;
+}
+
 const defaultProfessorAges = [
   38, 72, 54, 46, 37, 67, 42, 51, 44, 69,
   48, 65, 39, 56, 47, 35, 45, 36, 52, 41,
@@ -359,6 +447,10 @@ function showAuth() {
   introScreen.hidden = true;
   professorSelectScreen.hidden = true;
   professorOfficeScreen.hidden = true;
+  assignmentReviewScreen.hidden = true;
+  reviewResultScreen.hidden = true;
+  courseMaterialScreen.hidden = true;
+  lectureAudioScreen.hidden = true;
   closedScreen.hidden = true;
   modalBackdrop.hidden = true;
   selectionModalBackdrop.hidden = true;
@@ -601,12 +693,20 @@ function showProfessorOffice() {
 
   professorSelectScreen.hidden = true;
   featureModalBackdrop.hidden = true;
+  assignmentReviewScreen.hidden = true;
+  reviewResultScreen.hidden = true;
+  courseMaterialScreen.hidden = true;
+  lectureAudioScreen.hidden = true;
   professorOfficeScreen.hidden = false;
   document.querySelector("[data-feature='chat']").focus({ preventScroll: true });
 }
 
 function backToProfessors() {
   featureModalBackdrop.hidden = true;
+  assignmentReviewScreen.hidden = true;
+  reviewResultScreen.hidden = true;
+  courseMaterialScreen.hidden = true;
+  lectureAudioScreen.hidden = true;
   professorOfficeScreen.hidden = true;
   professorSelectScreen.hidden = false;
   renderProfessor(selectedProfessorId);
@@ -649,18 +749,6 @@ function confirmSelection() {
 }
 
 const uploadFeatureSettings = {
-  review: {
-    title: "과제 첨삭",
-    guide: "첨삭받을 과제 파일을 선택해 주세요.",
-    accept: ".pdf,.doc,.docx,.hwp,.txt",
-    button: "첨삭 요청하기",
-  },
-  material: {
-    title: "강의 자료 업로드",
-    guide: "교수의 참고 자료로 사용할 강의 자료를 등록해 주세요.",
-    accept: ".pdf,.ppt,.pptx,.doc,.docx,.hwp,.txt",
-    button: "강의 자료 등록하기",
-  },
   audio: {
     title: "강의 음성 업로드",
     guide: "녹음된 강의 음성 파일을 등록해 주세요.",
@@ -669,7 +757,223 @@ const uploadFeatureSettings = {
   },
 };
 
+function showAssignmentReview() {
+  featureModalBackdrop.hidden = true;
+  professorOfficeScreen.hidden = true;
+  assignmentReviewScreen.hidden = false;
+  document.querySelector(".review-prompt-input").focus({ preventScroll: true });
+}
+
+function closeAssignmentReview() {
+  assignmentReviewScreen.hidden = true;
+  reviewResultScreen.hidden = true;
+  professorOfficeScreen.hidden = false;
+  document.querySelector("[data-feature='review']").focus({ preventScroll: true });
+}
+
+function createMockReviewComment(profile, prompt, fileName) {
+  const focus = prompt.length > 32 ? `${prompt.slice(0, 32)}…` : prompt;
+  return `${fileName}을 확인했습니다. “${focus}”를 기준으로 검토했어요. 전체 구조는 나쁘지 않지만 주장과 근거의 연결이 느슨합니다. 각 문단 첫 문장에 주장을 밝히고 바로 뒤에 출처와 사례를 배치하세요. 결론이 앞선 근거를 정확히 회수하는지도 다시 확인하기 바랍니다.`;
+}
+
+function typeReviewComment(comment) {
+  const commentElement = document.querySelector(".review-result-comment");
+  const cursor = document.querySelector(".typewriter-cursor");
+  window.clearTimeout(typewriterTimer);
+  commentElement.textContent = "";
+  cursor.hidden = false;
+  let index = 0;
+
+  function typeNextCharacter() {
+    if (index >= comment.length) {
+      cursor.hidden = true;
+      return;
+    }
+
+    commentElement.textContent += comment[index];
+    const character = comment[index];
+    index += 1;
+    const delay = /[.!?。！？]/.test(character) ? 180 : /[,，]/.test(character) ? 85 : 24;
+    typewriterTimer = window.setTimeout(typeNextCharacter, delay);
+  }
+
+  typeNextCharacter();
+}
+
+function showReviewResult(prompt, fileName) {
+  const profile = professorProfiles.find((item) => item.id === selectedProfessorId);
+  const professorImage = document.querySelector(".review-result-professor");
+  const imageRequestId = ++resultProfessorRequestId;
+  professorImage.classList.add("is-processing");
+  professorImage.removeAttribute("src");
+  professorImage.alt = `${profile.name} 인물 이미지`;
+  getTransparentProfessorImage(profile.image).then((transparentImageUrl) => {
+    if (imageRequestId !== resultProfessorRequestId) {
+      return;
+    }
+    professorImage.onload = () => professorImage.classList.remove("is-processing");
+    professorImage.src = transparentImageUrl;
+  });
+  document.querySelector(".review-result-professor-name").textContent = profile.name;
+
+  lastReviewComment = createMockReviewComment(profile, prompt, fileName);
+  assignmentReviewScreen.hidden = true;
+  reviewResultScreen.hidden = false;
+  requestAnimationFrame(() => {
+    typeReviewComment(lastReviewComment);
+    document.querySelector("[data-action='open-review-report']").focus({ preventScroll: true });
+  });
+}
+
+function backToReviewForm() {
+  window.clearTimeout(typewriterTimer);
+  reviewResultScreen.hidden = true;
+  featureModalBackdrop.hidden = true;
+  assignmentReviewScreen.hidden = false;
+  document.querySelector(".review-prompt-input").focus({ preventScroll: true });
+}
+
+function openReviewReport() {
+  const profile = professorProfiles.find((item) => item.id === selectedProfessorId);
+  const request = JSON.parse(sessionStorage.getItem("assignment-review-request") ?? "{}");
+  const title = document.querySelector("#feature-modal-title");
+  const content = document.querySelector(".feature-modal-content");
+  title.textContent = "과제 첨삭 보고서";
+  content.innerHTML = `
+    <article class="review-report">
+      <div class="report-meta">
+        <span>담당 교수</span><strong class="report-professor"></strong>
+        <span>과제 파일</span><strong class="report-file"></strong>
+      </div>
+      <section>
+        <h3>종합 의견</h3>
+        <p class="report-comment"></p>
+      </section>
+      <section>
+        <h3>우선 수정 항목</h3>
+        <ol>
+          <li>각 문단의 핵심 주장을 첫 문장에 명확히 제시할 것</li>
+          <li>주장 직후 신뢰할 수 있는 출처와 구체적 사례를 배치할 것</li>
+          <li>결론에서 본론의 근거를 빠짐없이 회수할 것</li>
+        </ol>
+      </section>
+      <button class="report-download-button" type="button">텍스트 보고서 저장</button>
+    </article>
+  `;
+  content.querySelector(".report-professor").textContent = profile.name;
+  content.querySelector(".report-file").textContent = request.fileName ?? reviewFile?.name ?? "과제 파일";
+  content.querySelector(".report-comment").textContent = lastReviewComment;
+  content.querySelector(".report-download-button").addEventListener("click", downloadReviewReport);
+  featureModalBackdrop.hidden = false;
+  content.querySelector(".report-download-button").focus({ preventScroll: true });
+}
+
+function downloadReviewReport() {
+  const profile = professorProfiles.find((item) => item.id === selectedProfessorId);
+  const report = [
+    "과제 첨삭 보고서",
+    `담당 교수: ${profile.name}`,
+    "",
+    lastReviewComment,
+    "",
+    "우선 수정 항목",
+    "1. 각 문단의 핵심 주장을 첫 문장에 명확히 제시할 것",
+    "2. 주장 직후 신뢰할 수 있는 출처와 구체적 사례를 배치할 것",
+    "3. 결론에서 본론의 근거를 빠짐없이 회수할 것",
+  ].join("\n");
+  const url = URL.createObjectURL(new Blob([report], { type: "text/plain;charset=utf-8" }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "과제-첨삭-보고서.txt";
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function openReviewQuestion() {
+  const profile = professorProfiles.find((item) => item.id === selectedProfessorId);
+  const title = document.querySelector("#feature-modal-title");
+  const content = document.querySelector(".feature-modal-content");
+  title.textContent = "첨삭 내용 질문하기";
+  content.innerHTML = `
+    <div class="chat-workspace">
+      <div class="chat-log" aria-live="polite">
+        <div class="chat-message professor-message"></div>
+      </div>
+      <form class="chat-form">
+        <label class="sr-only" for="review-question-input">첨삭 내용 질문</label>
+        <textarea id="review-question-input" rows="2" maxlength="500" placeholder="첨삭 내용에 관해 질문하세요" required></textarea>
+        <button type="submit">전송</button>
+      </form>
+    </div>
+  `;
+  content.querySelector(".professor-message").textContent =
+    `${profile.name}입니다. 방금 전달한 첨삭 내용 중 이해되지 않는 부분을 질문하세요.`;
+  content.querySelector(".chat-form").addEventListener("submit", handleChatSubmit);
+  featureModalBackdrop.hidden = false;
+  content.querySelector("textarea").focus({ preventScroll: true });
+}
+
+function showCourseMaterial() {
+  featureModalBackdrop.hidden = true;
+  professorOfficeScreen.hidden = true;
+  courseMaterialScreen.hidden = false;
+  document.querySelector(".material-file-zone").focus({ preventScroll: true });
+}
+
+function closeCourseMaterial() {
+  courseMaterialScreen.hidden = true;
+  professorOfficeScreen.hidden = false;
+  document.querySelector("[data-feature='material']").focus({ preventScroll: true });
+}
+
+function showLectureAudio() {
+  featureModalBackdrop.hidden = true;
+  professorOfficeScreen.hidden = true;
+  lectureAudioScreen.hidden = false;
+  document.querySelector(".audio-file-zone").focus({ preventScroll: true });
+}
+
+function closeLectureAudio() {
+  lectureAudioScreen.hidden = true;
+  professorOfficeScreen.hidden = false;
+  document.querySelector("[data-feature='audio']").focus({ preventScroll: true });
+}
+
+function setReviewFile(file) {
+  const message = document.querySelector(".review-form-message");
+  const status = document.querySelector(".review-file-status");
+  const allowedExtensions = [".pdf", ".txt"];
+  const extension = file ? `.${file.name.split(".").pop().toLowerCase()}` : "";
+
+  if (!file || !allowedExtensions.includes(extension)) {
+    reviewFile = null;
+    reviewDropzone.classList.remove("has-file");
+    status.textContent = "";
+    message.textContent = file ? "PDF 또는 텍스트 파일만 첨부할 수 있습니다." : "";
+    return;
+  }
+
+  reviewFile = file;
+  reviewDropzone.classList.add("has-file");
+  status.dataset.fileType = extension.slice(1).toUpperCase();
+  status.textContent = file.name;
+  message.textContent = "";
+}
+
 function openFeature(feature) {
+  if (feature === "review") {
+    showAssignmentReview();
+    return;
+  }
+  if (feature === "material") {
+    showCourseMaterial();
+    return;
+  }
+  if (feature === "audio") {
+    showLectureAudio();
+    return;
+  }
+
   const profile = professorProfiles.find((item) => item.id === selectedProfessorId);
   const title = document.querySelector("#feature-modal-title");
   const content = document.querySelector(".feature-modal-content");
@@ -768,7 +1072,10 @@ function setupUploadForm(form, featureTitle) {
 
 function closeFeature() {
   featureModalBackdrop.hidden = true;
-  document.querySelector(`[data-feature]`)?.focus({ preventScroll: true });
+  const returnTarget = reviewResultScreen.hidden
+    ? document.querySelector("[data-feature]")
+    : document.querySelector("[data-action='open-review-report']");
+  returnTarget?.focus({ preventScroll: true });
 }
 
 function showTitle() {
@@ -778,6 +1085,10 @@ function showTitle() {
   introScreen.classList.remove("is-visible");
   professorSelectScreen.hidden = true;
   professorOfficeScreen.hidden = true;
+  assignmentReviewScreen.hidden = true;
+  reviewResultScreen.hidden = true;
+  courseMaterialScreen.hidden = true;
+  lectureAudioScreen.hidden = true;
   selectionModalBackdrop.hidden = true;
   featureModalBackdrop.hidden = true;
   selectionToast.hidden = true;
@@ -831,6 +1142,10 @@ function exitGame() {
   introScreen.hidden = true;
   professorSelectScreen.hidden = true;
   professorOfficeScreen.hidden = true;
+  assignmentReviewScreen.hidden = true;
+  reviewResultScreen.hidden = true;
+  courseMaterialScreen.hidden = true;
+  lectureAudioScreen.hidden = true;
   closedScreen.hidden = false;
 
   window.close();
@@ -857,6 +1172,12 @@ function handleAction(action) {
     "back-to-intro": backToIntro,
     "back-to-professors": backToProfessors,
     "close-feature": closeFeature,
+    "close-review": closeAssignmentReview,
+    "back-to-review-form": backToReviewForm,
+    "open-review-report": openReviewReport,
+    "open-review-question": openReviewQuestion,
+    "close-material": closeCourseMaterial,
+    "close-audio": closeLectureAudio,
     "cancel-selection": cancelSelection,
     "confirm-selection": confirmSelection,
     logout,
@@ -913,6 +1234,219 @@ submissionForm.addEventListener("submit", (event) => {
   openSelectionModal(customization);
 });
 
+const assignmentReviewForm = document.querySelector("#assignment-review-form");
+const reviewDropzone = document.querySelector(".review-dropzone");
+const reviewDropInput = document.querySelector(".review-drop-input");
+
+document.querySelectorAll("[data-review-file], .review-drop-input").forEach((input) => {
+  input.addEventListener("change", () => setReviewFile(input.files[0]));
+});
+
+reviewDropzone.addEventListener("click", () => reviewDropInput.click());
+reviewDropzone.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    reviewDropInput.click();
+  }
+});
+["dragenter", "dragover"].forEach((eventName) => {
+  reviewDropzone.addEventListener(eventName, (event) => {
+    event.preventDefault();
+    reviewDropzone.classList.add("is-dragging");
+  });
+});
+["dragleave", "drop"].forEach((eventName) => {
+  reviewDropzone.addEventListener(eventName, (event) => {
+    event.preventDefault();
+    reviewDropzone.classList.remove("is-dragging");
+  });
+});
+reviewDropzone.addEventListener("drop", (event) => {
+  setReviewFile(event.dataTransfer.files[0]);
+});
+
+assignmentReviewForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const prompt = new FormData(event.currentTarget).get("reviewPrompt").trim();
+  const message = document.querySelector(".review-form-message");
+
+  if (!prompt) {
+    message.textContent = "첨삭 지시 프롬프트를 입력해 주세요.";
+    document.querySelector(".review-prompt-input").focus();
+    return;
+  }
+  if (!reviewFile) {
+    message.textContent = "PDF 또는 텍스트 과제 파일을 첨부해 주세요.";
+    reviewDropzone.focus();
+    return;
+  }
+
+  sessionStorage.setItem("assignment-review-request", JSON.stringify({
+    professorId: selectedProfessorId,
+    prompt,
+    fileName: reviewFile.name,
+    requestedAt: new Date().toISOString(),
+  }));
+  message.textContent = "";
+  showReviewResult(prompt, reviewFile.name);
+});
+
+const courseMaterialForm = document.querySelector("#course-material-form");
+const materialFileInput = document.querySelector(".material-file-input");
+const materialFileZone = document.querySelector(".material-file-zone");
+
+materialFileZone.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    materialFileInput.click();
+  }
+});
+
+function setMaterialFile(file) {
+  const status = document.querySelector(".material-file-status");
+  const message = document.querySelector(".material-form-message");
+  const isPdf = Boolean(file) && file.name.toLowerCase().endsWith(".pdf");
+
+  if (!isPdf) {
+    materialFile = null;
+    materialFileZone.classList.remove("has-file");
+    status.textContent = "";
+    status.removeAttribute("data-file-type");
+    status.removeAttribute("title");
+    message.textContent = file ? "PDF 파일만 등록할 수 있습니다." : "";
+    return;
+  }
+
+  materialFile = file;
+  materialFileZone.classList.add("has-file");
+  status.dataset.fileType = "PDF";
+  status.textContent = file.name;
+  status.title = file.name;
+  message.textContent = "";
+}
+
+materialFileInput.addEventListener("change", () => {
+  setMaterialFile(materialFileInput.files[0]);
+});
+
+["dragenter", "dragover"].forEach((eventName) => {
+  materialFileZone.addEventListener(eventName, (event) => {
+    event.preventDefault();
+    materialFileZone.classList.add("is-dragging");
+  });
+});
+["dragleave", "drop"].forEach((eventName) => {
+  materialFileZone.addEventListener(eventName, (event) => {
+    event.preventDefault();
+    materialFileZone.classList.remove("is-dragging");
+  });
+});
+materialFileZone.addEventListener("drop", (event) => {
+  setMaterialFile(event.dataTransfer.files[0]);
+});
+
+courseMaterialForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const message = document.querySelector(".material-form-message");
+  if (!materialFile) {
+    message.textContent = "등록할 PDF 강의 파일을 선택해 주세요.";
+    materialFileZone.focus();
+    return;
+  }
+
+  const description = new FormData(event.currentTarget)
+    .get("materialDescription")
+    .trim();
+  sessionStorage.setItem("assignment-review-course-material", JSON.stringify({
+    professorId: selectedProfessorId,
+    fileName: materialFile.name,
+    description,
+    uploadedAt: new Date().toISOString(),
+  }));
+  message.textContent = "강의 자료 등록 준비가 완료되었습니다. 백엔드 연결 후 서버에 저장됩니다.";
+});
+
+const lectureAudioForm = document.querySelector("#lecture-audio-form");
+const audioFileInput = document.querySelector(".audio-file-input");
+const audioFileZone = document.querySelector(".audio-file-zone");
+const allowedAudioExtensions = [".mp3", ".wav", ".m4a", ".aac", ".ogg", ".webm"];
+
+function setAudioFile(file) {
+  const status = document.querySelector(".audio-file-status");
+  const message = document.querySelector(".audio-form-message");
+  const extension = file ? `.${file.name.split(".").pop().toLowerCase()}` : "";
+  const isAudioFile = Boolean(file)
+    && (file.type.startsWith("audio/") || allowedAudioExtensions.includes(extension));
+
+  if (!isAudioFile) {
+    audioFile = null;
+    audioFileZone.classList.remove("has-file");
+    status.textContent = "";
+    status.removeAttribute("data-file-type");
+    status.removeAttribute("title");
+    message.textContent = file ? "지원되는 음성 파일을 선택해 주세요." : "";
+    return;
+  }
+
+  audioFile = file;
+  audioFileZone.classList.add("has-file");
+  status.dataset.fileType = allowedAudioExtensions.includes(extension)
+    ? extension.slice(1).toUpperCase()
+    : "AUDIO";
+  status.textContent = file.name;
+  status.title = file.name;
+  message.textContent = "";
+}
+
+audioFileZone.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    audioFileInput.click();
+  }
+});
+
+audioFileInput.addEventListener("change", () => {
+  setAudioFile(audioFileInput.files[0]);
+});
+
+["dragenter", "dragover"].forEach((eventName) => {
+  audioFileZone.addEventListener(eventName, (event) => {
+    event.preventDefault();
+    audioFileZone.classList.add("is-dragging");
+  });
+});
+
+["dragleave", "drop"].forEach((eventName) => {
+  audioFileZone.addEventListener(eventName, (event) => {
+    event.preventDefault();
+    audioFileZone.classList.remove("is-dragging");
+  });
+});
+
+audioFileZone.addEventListener("drop", (event) => {
+  setAudioFile(event.dataTransfer.files[0]);
+});
+
+lectureAudioForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const message = document.querySelector(".audio-form-message");
+
+  if (!audioFile) {
+    message.textContent = "등록할 강의 음성 파일을 선택해 주세요.";
+    audioFileZone.focus();
+    return;
+  }
+
+  sessionStorage.setItem("assignment-review-lecture-audio", JSON.stringify({
+    professorId: selectedProfessorId,
+    fileName: audioFile.name,
+    fileType: audioFile.type,
+    fileSize: audioFile.size,
+    uploadedAt: new Date().toISOString(),
+  }));
+  message.textContent = "강의 음성 등록 준비가 완료되었습니다. 백엔드 연결 후 서버에 저장됩니다.";
+});
+
 authForms.login.addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
@@ -967,6 +1501,38 @@ document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
       event.preventDefault();
       closeFeature();
+    }
+    return;
+  }
+
+  if (!assignmentReviewScreen.hidden) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeAssignmentReview();
+    }
+    return;
+  }
+
+  if (!reviewResultScreen.hidden) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      backToReviewForm();
+    }
+    return;
+  }
+
+  if (!courseMaterialScreen.hidden) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeCourseMaterial();
+    }
+    return;
+  }
+
+  if (!lectureAudioScreen.hidden) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeLectureAudio();
     }
     return;
   }
