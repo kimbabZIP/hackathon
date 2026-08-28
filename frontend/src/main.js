@@ -41,7 +41,6 @@ const authForms = {
 
 let selectedMenuIndex = 0;
 let selectedProfessorId = "yoon";
-let professorSelectionLocked = false;
 let transitionTimer;
 let professorHoverTimer;
 let toastTimer;
@@ -663,18 +662,11 @@ function initializeProfessorRoster() {
     const professorId = tile.dataset.professorId;
 
     tile.addEventListener("pointerenter", () => {
-      if (professorSelectionLocked) {
-        return;
-      }
       window.clearTimeout(professorHoverTimer);
       professorHoverTimer = window.setTimeout(() => renderProfessor(professorId), 90);
     });
     tile.addEventListener("focus", () => renderProfessor(professorId));
-    tile.addEventListener("click", () => {
-      professorSelectionLocked = true;
-      window.clearTimeout(professorHoverTimer);
-      renderProfessor(professorId);
-    });
+    tile.addEventListener("click", () => renderProfessor(professorId));
   });
 
   professorGrid.addEventListener("keydown", (event) => {
