@@ -296,11 +296,25 @@
             </dl>
           </aside>
 
+          <p class="office-ai-requirement" id="office-ai-requirement" role="status" aria-live="polite">
+            강의 자료 또는 강의 음성을 등록하면 AI 기능이 활성화됩니다.
+          </p>
+
           <nav class="office-feature-menu" aria-label="주요 기능">
-            <button type="button" data-feature="chat">
+            <button
+              type="button"
+              data-feature="chat"
+              aria-describedby="office-ai-requirement"
+              disabled
+            >
               <span class="sr-only">챗봇 기능</span>
             </button>
-            <button type="button" data-feature="review">
+            <button
+              type="button"
+              data-feature="review"
+              aria-describedby="office-ai-requirement"
+              disabled
+            >
               <span class="sr-only">과제 첨삭</span>
             </button>
             <button type="button" data-feature="material">

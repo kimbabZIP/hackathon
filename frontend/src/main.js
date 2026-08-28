@@ -713,7 +713,10 @@ function showProfessorOffice() {
   lectureAudioScreen.hidden = true;
   chatbotScreen.hidden = true;
   professorOfficeScreen.hidden = false;
-  document.querySelector("[data-feature='chat']").focus({ preventScroll: true });
+  const aiFeaturesEnabled = updateAiFeatureAvailability();
+  document
+    .querySelector(`[data-feature='${aiFeaturesEnabled ? "chat" : "material"}']`)
+    .focus({ preventScroll: true });
 }
 
 function backToProfessors() {
@@ -1006,6 +1009,46 @@ function getSelectedProfessorUploads() {
   };
 }
 
+function isKnowledgeSourceReady(upload) {
+  return Boolean(
+    upload
+    && upload.uploadedAt
+    && (upload.status === undefined || upload.status === "ready"),
+  );
+}
+
+function updateAiFeatureAvailability() {
+  const { material, audio } = getSelectedProfessorUploads();
+  const materialReady = isKnowledgeSourceReady(material);
+  const audioReady = isKnowledgeSourceReady(audio);
+  const enabled = materialReady || audioReady;
+  const requirement = document.querySelector(".office-ai-requirement");
+
+  ["chat", "review"].forEach((feature) => {
+    const button = document.querySelector(`[data-feature="${feature}"]`);
+    button.disabled = !enabled;
+    button.setAttribute("aria-disabled", String(!enabled));
+    if (enabled) {
+      button.removeAttribute("title");
+    } else {
+      button.title = "강의 자료 또는 강의 음성을 등록하면 AI 기능이 활성화됩니다.";
+    }
+  });
+
+  requirement.classList.toggle("is-ready", enabled);
+  if (materialReady && audioReady) {
+    requirement.textContent = "강의 자료와 음성이 연결되어 AI 기능을 사용할 수 있습니다.";
+  } else if (materialReady) {
+    requirement.textContent = "강의 자료가 연결되어 AI 기능을 사용할 수 있습니다.";
+  } else if (audioReady) {
+    requirement.textContent = "강의 음성이 연결되어 AI 기능을 사용할 수 있습니다.";
+  } else {
+    requirement.textContent = "강의 자료 또는 강의 음성을 등록하면 AI 기능이 활성화됩니다.";
+  }
+
+  return enabled;
+}
+
 function shortenFileName(fileName, maxLength = 24) {
   return fileName.length > maxLength ? `${fileName.slice(0, maxLength)}…` : fileName;
 }
@@ -1200,6 +1243,12 @@ function setReviewFile(file) {
 }
 
 function openFeature(feature) {
+  if (["chat", "review"].includes(feature) && !updateAiFeatureAvailability()) {
+    document.querySelector(".office-ai-requirement").textContent =
+      "먼저 강의 자료 또는 강의 음성을 등록해 주세요.";
+    return;
+  }
+
   const featureHandlers = {
     chat: showChatbot,
     review: showAssignmentReview,
@@ -1525,9 +1574,11 @@ courseMaterialForm.addEventListener("submit", (event) => {
     professorId: selectedProfessorId,
     fileName: materialFile.name,
     description,
+    status: "ready",
     uploadedAt: new Date().toISOString(),
   }));
-  message.textContent = "강의 자료 등록 준비가 완료되었습니다. 백엔드 연결 후 서버에 저장됩니다.";
+  updateAiFeatureAvailability();
+  message.textContent = "강의 자료가 등록되어 챗봇과 과제 첨삭이 활성화되었습니다.";
 });
 
 const lectureAudioForm = document.querySelector("#lecture-audio-form");
@@ -1606,9 +1657,11 @@ lectureAudioForm.addEventListener("submit", (event) => {
     fileName: audioFile.name,
     fileType: audioFile.type,
     fileSize: audioFile.size,
+    status: "ready",
     uploadedAt: new Date().toISOString(),
   }));
-  message.textContent = "강의 음성 등록 준비가 완료되었습니다. 백엔드 연결 후 서버에 저장됩니다.";
+  updateAiFeatureAvailability();
+  message.textContent = "강의 음성이 등록되어 챗봇과 과제 첨삭이 활성화되었습니다.";
 });
 
 document.querySelector("#chatbot-direct-form").addEventListener("submit", (event) => {

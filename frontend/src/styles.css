@@ -1176,6 +1176,36 @@ button {
   line-height: 1.45;
 }
 
+.office-ai-requirement {
+  position: absolute;
+  z-index: 7;
+  top: 60.2%;
+  left: 24.8%;
+  width: min(31%, 460px);
+  padding: clamp(10px, 1.1vw, 16px) clamp(12px, 1.4vw, 20px);
+  margin: 0;
+  visibility: hidden;
+  border: 1px solid rgba(211, 174, 111, 0.65);
+  border-radius: 5px;
+  color: #ead7b6;
+  background: rgba(20, 19, 16, 0.94);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5), inset 0 0 20px rgba(154, 104, 48, 0.1);
+  font-size: clamp(11px, 1vw, 15px);
+  line-height: 1.55;
+  text-align: left;
+  text-shadow: 0 2px 4px #000;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-8px);
+  transition: opacity 160ms ease, transform 160ms ease, visibility 160ms ease;
+}
+
+.office-stage:has(.office-feature-menu button:disabled:hover) .office-ai-requirement {
+  visibility: visible;
+  opacity: 1;
+  transform: translateX(0);
+}
+
 .office-feature-menu {
   position: absolute;
   z-index: 4;
@@ -1212,12 +1242,31 @@ button {
   top: 87%;
 }
 
-.office-feature-menu button:hover,
-.office-feature-menu button:focus-visible {
+.office-feature-menu button:not(:disabled):hover,
+.office-feature-menu button:not(:disabled):focus-visible {
   outline: none;
   border-color: rgba(239, 207, 147, 0.78);
   background: rgba(210, 162, 86, 0.08);
   box-shadow: 0 0 20px rgba(222, 174, 98, 0.2), inset 0 0 16px rgba(231, 190, 119, 0.06);
+}
+
+.office-feature-menu button:disabled {
+  border-color: rgba(80, 76, 67, 0.4);
+  background: rgba(4, 6, 5, 0.62);
+  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.45);
+  cursor: not-allowed;
+}
+
+.office-feature-menu button:disabled::after {
+  content: "🔒 잠김";
+  position: absolute;
+  top: 50%;
+  right: 7%;
+  color: rgba(201, 183, 149, 0.72);
+  font-size: clamp(8px, 0.72vw, 11px);
+  letter-spacing: 0.05em;
+  text-shadow: 0 1px 3px #000;
+  transform: translateY(-50%);
 }
 
 .office-back-button {
