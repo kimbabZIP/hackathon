@@ -112,7 +112,7 @@ class InteractiveProfessorAgent:
         if intent in ["ACADEMIC_QA", "CASUAL_CHAT"]:
             pipe_display_name = "⚡ 【학술 Q&A 2-Stage Multi-Agent 엔진】" if intent == "ACADEMIC_QA" else "💬 【일상/멘토링 대화 파이프라인】"
             logger.info("▶ 의도: [%s] 모드로 파이프라인 가동 중...", intent)
-            reply_text, token_info, trace_steps = await self._generate_chat_reply(
+            reply_text, suggested_qs, token_info, trace_steps = await self._generate_chat_reply(
                 user_message=student_message,
                 assignment_context=assignment_context,
             )
@@ -143,6 +143,7 @@ class InteractiveProfessorAgent:
                 "execution_trace": trace,
                 "professor_name": self.profile.professor_name,
                 "reply": reply_text,
+                "suggested_questions": suggested_qs,
                 "expression": "DEFAULT",
                 "tokens": token_info,
             }
@@ -220,12 +221,18 @@ class InteractiveProfessorAgent:
             summary_short = report.professor_feedback_summary
             self.history.append({"role": "professor", "content": f"[과제 총평] {summary_short[:80]}"})
 
+            eval_suggested_qs = [
+                "지적해주신 부족한 항목을 보완하려면 어떤 내용을 추가해야 하나요?",
+                "감점된 기준에 대한 모범 작성 예시를 보여주실 수 있나요?"
+            ]
+
             return {
                 "type": "ASSIGNMENT_EVALUATION",
                 "execution_trace": trace,
                 "professor_name": self.profile.professor_name,
                 "report": report.model_dump(),
                 "summary": report.professor_feedback_summary,
+                "suggested_questions": eval_suggested_qs,
                 "expression": report.criterion_results[0].expression if report.criterion_results else "SERIOUS",
                 "tokens": {"total_tokens": 850},
             }
@@ -300,12 +307,13 @@ Answer the student's message with genuine intelligence and contextual awareness:
         academic_answer, token_info_1 = await self._call_gemini(brain_prompt)
         t1_ms = (time.perf_counter() - t1_start) * 1000
 
-        # ── 2단계: 교수 페르소나 스타일러 ──────────────────────────────────
+        # ── 2단계: 교수 페르소나 스타일러 + 예상 질문 2개 생성 ──────────
         t2_start = time.perf_counter()
         stylizer_system_prompt = f"""\
-당신은 최고급 자연어 스타일 변환기(Persona Stylizer)입니다.
+당신은 최고급 자연어 스타일 변환기(Persona Stylizer)이자 대화 추천 엔진입니다.
 입력으로 주어지는 [답변 원본]의 학술적 사실과 핵심 내용을 100% 온전하게 유지하면서,
-컴퓨터공학과 '{self.profile.professor_name}' 교수님의 자연스럽고 매끄러운 어투로 리라이팅하십시오.
+컴퓨터공학과 '{self.profile.professor_name}' 교수님의 자연스럽고 매끄러운 어투로 리라이팅하고,
+학생이 이어서 질문할 만한 자연스러운 **[예상 질문 2개]**를 함께 생성하십시오.
 
 [교수 페르소나 프로필]
 • 이름: {self.profile.professor_name} 교수
@@ -313,16 +321,45 @@ Answer the student's message with genuine intelligence and contextual awareness:
 • 어조 및 스타일: {self.profile.dna.tone_description}
 • 주된 종결어미 스타일: {endings}
 
-[리라이팅 핵심 규칙 (매우 중요)]
+[리라이팅 및 질문 생성 규칙]
 1. 절대 추임새나 어미를 문장에 억지로 끼워 넣지 마십시오! (예: "자, 다시 모두 안녕하십니까" 같은 어색한 말 금지)
 2. 살아있는 한국인 교수처럼 문맥에 맞게 자연스럽고 매끄러운 완전한 한국어 문장으로 작성하십시오.
 3. 코드 블록, 수식, 핵심 기술 설명은 누락하거나 변형하지 말고 그대로 유지하십시오.
-4. 답변이 군더더기 없이 단정하고 지적이며, 교수의 성격이 자연스럽게 배어 나오도록 하십시오.
+4. **suggested_questions**: 학생 입장에서 방금 교수의 답변을 듣고 자연스럽게 이어서 물어볼 만한 구체적인 질문 2개를 생성하십시오 (예: 심화 원리 질문, 코드 최적화 질문, 다른 사례 질문 등).
+
+반드시 아래 JSON 형식으로만 응답하십시오:
+```json
+{{
+  "reply": "교수님 어투로 작성된 최종 답변 전문 (마크다운 코드블록 포함)",
+  "suggested_questions": [
+    "학생의 자연스러운 예상 질문 1",
+    "학생의 자연스러운 예상 질문 2"
+  ]
+}}
+```
 """
-        stylizer_prompt = f"{stylizer_system_prompt}\n\n[답변 원본]\n{academic_answer}\n\n[{self.profile.professor_name} 교수 어조 최종 답변]:"
+        stylizer_prompt = f"{stylizer_system_prompt}\n\n[답변 원본]\n{academic_answer}\n\n[JSON 응답]:"
         
-        final_reply, token_info_2 = await self._call_gemini(stylizer_prompt)
+        raw_json, token_info_2 = await self._call_gemini(stylizer_prompt, is_json=True)
         t2_ms = (time.perf_counter() - t2_start) * 1000
+
+        try:
+            parsed_data = json.loads(self._clean_json(raw_json))
+            final_reply = parsed_data.get("reply", raw_json)
+            suggested_qs = parsed_data.get("suggested_questions", [])
+            if not isinstance(suggested_qs, list) or len(suggested_qs) < 2:
+                suggested_qs = [
+                    "이 내용의 구체적인 코드 예시를 더 보여주실 수 있나요?",
+                    "실무나 시험에서 주의해야 할 핵심 포인트는 무엇인가요?"
+                ]
+            else:
+                suggested_qs = suggested_qs[:2]
+        except Exception:
+            final_reply = raw_json
+            suggested_qs = [
+                "이 내용의 구체적인 코드 예시를 더 보여주실 수 있나요?",
+                "실무나 시험에서 주의해야 할 핵심 포인트는 무엇인가요?"
+            ]
 
         total_tokens = {
             "prompt_tokens": token_info_1.get("prompt_tokens", 0) + token_info_2.get("prompt_tokens", 0),
@@ -335,7 +372,7 @@ Answer the student's message with genuine intelligence and contextual awareness:
             {"name": "PersonaStylizerAgent", "latency_ms": round(t2_ms, 1), "tokens": token_info_2.get("total_tokens", 0)},
         ]
 
-        return final_reply, total_tokens, trace_steps
+        return final_reply, suggested_qs, total_tokens, trace_steps
 
     @retry(
         retry=retry_if_exception_type(Exception),
