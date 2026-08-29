@@ -1182,9 +1182,56 @@ function typeReviewComment(comment) {
   typeNextCharacter();
 }
 
+function renderReviewSourceTrace(prompt, fileName, report) {
+  const source = report?.student_submission?.trim() || "";
+  const lineEdits = Array.isArray(report?.line_edits) ? report.line_edits : [];
+  const matchedEdits = lineEdits
+    .filter((edit) => {
+      const original = edit?.original?.trim();
+      return original && source.includes(original);
+    })
+    .slice(0, 3);
+  const excerpts = document.querySelector(".review-source-excerpts");
+
+  document.querySelector(".review-source-file").textContent = fileName || "제출 과제 파일";
+  document.querySelector(".review-source-request").textContent = prompt
+    ? `요청: ${prompt}`
+    : "사용자가 입력한 첨삭 요청을 기준으로 검토했습니다.";
+  document.querySelector(".review-source-stats").textContent = source
+    ? `원문 ${source.length.toLocaleString("ko-KR")}자 · 실제 문장 ${matchedEdits.length}곳 인용`
+    : "저장된 첨삭 결과의 원문 정보를 확인하고 있습니다.";
+  excerpts.replaceChildren();
+
+  if (matchedEdits.length) {
+    matchedEdits.forEach((edit, index) => {
+      const item = document.createElement("article");
+      const label = document.createElement("span");
+      const quote = document.createElement("blockquote");
+      const reason = document.createElement("p");
+      label.textContent = `원문 근거 ${String(index + 1).padStart(2, "0")}`;
+      quote.textContent = edit.original;
+      reason.textContent = edit.reason || "이 문장을 교수 피드백의 직접 근거로 사용했습니다.";
+      item.append(label, quote, reason);
+      excerpts.append(item);
+    });
+    return;
+  }
+
+  const item = document.createElement("article");
+  const label = document.createElement("span");
+  const quote = document.createElement("blockquote");
+  label.textContent = source ? "제출 원문 미리보기" : "원문 정보";
+  quote.textContent = source
+    ? `${source.slice(0, 320)}${source.length > 320 ? "…" : ""}`
+    : "이전 형식으로 저장된 결과에는 제출 원문이 포함되어 있지 않습니다.";
+  item.append(label, quote);
+  excerpts.append(item);
+}
+
 function showReviewResult(prompt, fileName, report) {
   const profile = selectedProfessor();
   playProfessorVoice(profile.id);
+  renderReviewSourceTrace(prompt, fileName, report);
   const professorImage = document.querySelector(".review-result-professor");
   const imageRequestId = ++resultProfessorRequestId;
   professorImage.classList.add("is-processing");
@@ -2223,7 +2270,7 @@ assignmentReviewForm.addEventListener("submit", async (event) => {
   }
 
   submitButton.disabled = true;
-  message.textContent = "강의 컨텍스트를 불러와 Gemini AI가 과제를 첨삭하고 있습니다…";
+  message.textContent = `「${reviewFile.name}」에서 사용자가 작성한 원문을 읽고 있습니다…`;
   const controller = beginFeatureRequest();
 
   try {
@@ -2237,6 +2284,8 @@ assignmentReviewForm.addEventListener("submit", async (event) => {
         422,
       );
     }
+
+    message.textContent = "제출 원문의 문장과 강의자료 근거를 하나씩 대조하고 있습니다…";
 
     const report = await gradeAssignment({
       lectureText,
